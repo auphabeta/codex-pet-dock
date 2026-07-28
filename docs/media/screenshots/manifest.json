@@ -1,0 +1,146 @@
+[
+  {
+    "file": "capybara-clockwork-brass-details.png",
+    "theme": "clockwork-brass",
+    "width": 641,
+    "height": 255,
+    "bytes": 55623,
+    "sha256": "F66ADF5EB4DE5CF9E1866310AF3065E116553FEE8389B0E9C8B22EADF60413F9"
+  },
+  {
+    "file": "capybara-forest-rune.png",
+    "theme": "forest-rune",
+    "width": 345,
+    "height": 229,
+    "bytes": 43778,
+    "sha256": "6C99B912A6E373D2F35B54C821CC4B87B616CC5174783F2D5FE97743AEDF2EEE"
+  },
+  {
+    "file": "capybara-holo-amber-details.png",
+    "theme": "holo-amber",
+    "width": 635,
+    "height": 244,
+    "bytes": 54294,
+    "sha256": "A1BA8CA85D4EAC36B50822085DE0617B70910EA7B22257D748A08FF208F6E6C5"
+  },
+  {
+    "file": "capybara-holo-cyan-details.png",
+    "theme": "holo-cyan",
+    "width": 649,
+    "height": 250,
+    "bytes": 54232,
+    "sha256": "8E39010960EAAAB88C431704365A4F9E0A86EE7D2FD15D90E079691FBFDDBAE2"
+  },
+  {
+    "file": "capybara-iron-throne-details.png",
+    "theme": "iron-throne",
+    "width": 631,
+    "height": 275,
+    "bytes": 58623,
+    "sha256": "00A33757C79C11BE746D7281EFE06F4EFDA77637533FA84D9245E078418FA7B3"
+  },
+  {
+    "file": "capybara-moon-lotus-details.png",
+    "theme": "moon-lotus",
+    "width": 630,
+    "height": 241,
+    "bytes": 55482,
+    "sha256": "25731A4BE0B68B19A3E2A66B4E76CF5F258BE7AA9409E2B61883DFA255EC1ABA"
+  },
+  {
+    "file": "capybara-princess-cradle.png",
+    "theme": "princess-cradle",
+    "width": 299,
+    "height": 238,
+    "bytes": 45361,
+    "sha256": "8CC45AD70CFA093422A078C042DE921105DFE20713D4574008D89F43AA1AB6F5"
+  },
+  {
+    "file": "capybara-sakura-shrine-details.png",
+    "theme": "sakura-shrine",
+    "width": 615,
+    "height": 245,
+    "bytes": 51813,
+    "sha256": "41965C8283D8C79361B4653BD038BCE73340D9FD7C051ED87358FDA141476280"
+  },
+  {
+    "file": "pet-switch-girl-holo-cyan-details.png",
+    "theme": "holo-cyan",
+    "pet": "girl",
+    "purpose": "pet-switching",
+    "width": 606,
+    "height": 238,
+    "bytes": 47074,
+    "sha256": "2E4CB9C9855FB793B20CA57EC595525B03F5392591A347FD0A216DF12AFC4B7E"
+  },
+  {
+    "file": "pet-switch-girl-sakura-standing-details.png",
+    "theme": "sakura-shrine",
+    "pet": "girl-standing",
+    "purpose": "pet-switching",
+    "width": 621,
+    "height": 230,
+    "bytes": 45285,
+    "sha256": "7FB221CE913F0DF617000C563CC796C431D524F1F2C1DBC500262839F6921937"
+  },
+  {
+    "file": "pet-switch-girl-sakura-sitting-details.png",
+    "theme": "sakura-shrine",
+    "pet": "girl-sitting",
+    "purpose": "pet-animation",
+    "width": 658,
+    "height": 211,
+    "bytes": 47796,
+    "sha256": "7052095EFF2F8C2281736335C54AF4B1C6247DF2D4B6BA3B3F69230478740697"
+  },
+  {
+    "file": "pet-switch-girl-princess-running-details.png",
+    "theme": "princess-cradle",
+    "pet": "girl-running",
+    "purpose": "pet-animation",
+    "width": 601,
+    "height": 220,
+    "bytes": 48781,
+    "sha256": "A54A04C234E7DF2B88223C267B08A83F89EF0816BD5771456AACDAFBF17D5CA6"
+  },
+  {
+    "file": "pet-switch-girl-princess-sitting-details.png",
+    "theme": "princess-cradle",
+    "pet": "girl-sitting",
+    "purpose": "pet-animation",
+    "width": 610,
+    "height": 220,
+    "bytes": 43868,
+    "sha256": "E85DC460D7E6BCEEB396555E346112E04CC23AA93BE29B3EC6D6A47CA05DDF58"
+  },
+  {
+    "file": "pet-switch-codex-holo-cyan-details.png",
+    "theme": "holo-cyan",
+    "pet": "codex",
+    "purpose": "pet-switching",
+    "width": 615,
+    "height": 234,
+    "bytes": 49675,
+    "sha256": "693F6185A3D56632B2F83F8209E8390C93A244984B61504BFF77E21FE8889E5C"
+  },
+  {
+    "file": "pet-switch-codex-holo-cyan-compact.png",
+    "theme": "holo-cyan",
+    "pet": "codex",
+    "purpose": "pet-switching-compact",
+    "width": 260,
+    "height": 209,
+    "bytes": 41014,
+    "sha256": "2DA2C3F5602B63F946775E767BC4696B9A32CC7D8FD016626B8FB60D1FFE0946"
+  },
+  {
+    "file": "pet-switch-flame-holo-cyan-compact.png",
+    "theme": "holo-cyan",
+    "pet": "flame",
+    "purpose": "pet-switching-compact",
+    "width": 300,
+    "height": 241,
+    "bytes": 37812,
+    "sha256": "F3A0A4A6E3FEDF98D0AF9D1D4579B15F84B46AF801DBC5B55CAA8B3504B29AD5"
+  }
+]

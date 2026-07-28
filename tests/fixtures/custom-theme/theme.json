@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "regression.custom-base",
+  "name": "Regression Custom Base",
+  "asset": "platform.png",
+  "width": 224,
+  "height": 72,
+  "contactSurfaceY": 14,
+  "contactOverlap": 7,
+  "contentOffsetY": 0,
+  "contactShadow": true,
+  "contactShadowY": 14,
+  "compactMetrics": false,
+  "metricsScrimOpacity": 96,
+  "accent": "#6FE8EF"
+}

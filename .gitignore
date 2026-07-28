@@ -1,0 +1,15 @@
+# Build and release artifacts
+/dist/
+
+# Local regression output
+/tests/last-regression.*.txt
+/tests/last-regression.pid.txt
+/tests/.theme-switch-*/
+
+# Runtime state and logs
+*.log
+*.tmp
+
+# Windows metadata
+Thumbs.db
+Desktop.ini
