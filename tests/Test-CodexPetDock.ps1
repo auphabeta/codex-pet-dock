@@ -743,6 +743,28 @@ Add-TestResult `
     $installerSource -notmatch 'Get-Command node' -and
     $installerSource -notmatch 'node --version'
   )
+$readmePath = Join-Path $projectRoot 'README.md'
+$readmeSource = Get-Content `
+  -Raw `
+  -Encoding UTF8 `
+  -LiteralPath $readmePath
+$demoVideoPath = Join-Path $projectRoot 'docs\video\yanshi.mp4'
+$demoPosterPath = Join-Path $projectRoot 'docs\video\yanshi-cover.jpg'
+$previewBuildPath = Join-Path $projectRoot 'packaging\Build-Preview.ps1'
+$previewBuildSource = Get-Content `
+  -Raw `
+  -Encoding UTF8 `
+  -LiteralPath $previewBuildPath
+Add-TestResult `
+  -Area 'Packaging' `
+  -Name 'README demo is visible while release package excludes the MP4' `
+  -Passed (
+    (Test-Path -LiteralPath $demoVideoPath) -and
+    (Test-Path -LiteralPath $demoPosterPath) -and
+    $readmeSource -match 'docs/video/yanshi-cover\.jpg' -and
+    $readmeSource -match 'docs/video/yanshi\.mp4' -and
+    $previewBuildSource -match "docs\\video\\yanshi\.mp4"
+  )
 try {
   $installerValidation = & powershell.exe `
     -NoProfile `

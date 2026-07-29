@@ -37,6 +37,12 @@ foreach ($directory in @('src', 'docs', 'packaging')) {
     -Recurse `
     -Force
 }
+# The README poster stays in the package, while the repository-only demo video
+# is omitted so a 27 MB documentation asset does not inflate user downloads.
+$packagedDemoVideo = Join-Path $stagingRoot 'docs\video\yanshi.mp4'
+if (Test-Path -LiteralPath $packagedDemoVideo) {
+  Remove-Item -LiteralPath $packagedDemoVideo -Force
+}
 [void][System.IO.Directory]::CreateDirectory(
   (Join-Path $stagingRoot 'tests')
 )
