@@ -1,0 +1,68 @@
+name: Bug report / Bug 反馈
+description: Report a reproducible Codex Pet Dock problem
+title: "[Bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve Codex Pet Dock. Remove personal data,
+        credentials, message text, local usernames, and private paths before
+        uploading logs or screenshots.
+  - type: input
+    id: version
+    attributes:
+      label: Codex Pet Dock version
+      placeholder: 0.3.0-beta
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment / 环境
+      description: Windows edition, build, Codex version, display scale
+      placeholder: Windows 11 24H2, Codex ..., 150% DPI
+    validations:
+      required: true
+  - type: input
+    id: pet_theme
+    attributes:
+      label: Pet and base theme / 宠物与底座
+      placeholder: Codex pet + Holo Cyan
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps / 复现步骤
+      placeholder: |
+        1. Open Codex...
+        2. Switch pet...
+        3. Drag...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior / 预期行为
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior / 实际行为
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Sanitized diagnostics / 已脱敏诊断
+      description: Relevant sidecar.log lines or screenshots; no credentials or personal data
+      render: shell
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Privacy confirmation
+      options:
+        - label: I removed credentials, message text, usernames, email addresses, and private paths.
+          required: true
+

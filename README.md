@@ -299,3 +299,7 @@ Codex Pet Dock 采用 [MIT License](LICENSE) 开源。你可以自由使用、�
 
 本项目是独立社区项目，不由 OpenAI 开发、认可或提供支持；Codex 等名称可能是
 其各自权利人的商标。详见 [NOTICE.md](NOTICE.md)。
+
+欢迎通过 Issue 报告可复现问题，或提交 Pull Request。开始前请阅读
+[CONTRIBUTING.md](CONTRIBUTING.md)；安全漏洞请按
+[SECURITY.md](SECURITY.md) 私下报告，不要公开包含凭证或个人信息的日志。

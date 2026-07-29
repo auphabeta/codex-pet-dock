@@ -768,6 +768,14 @@ Add-TestResult `
     $previewBuildSource -match "'LICENSE'" -and
     $installerSource -match "'LICENSE'"
   )
+$releaseAuditPath = Join-Path $projectRoot 'tests\Test-ReleasePackage.ps1'
+Add-TestResult `
+  -Area 'Packaging' `
+  -Name 'CI-ready release audit is included in the package' `
+  -Passed (
+    (Test-Path -LiteralPath $releaseAuditPath) -and
+    $previewBuildSource -match "'Test-ReleasePackage\.ps1'"
+  )
 try {
   $installerValidation = & powershell.exe `
     -NoProfile `
