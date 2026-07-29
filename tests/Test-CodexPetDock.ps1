@@ -9,7 +9,12 @@ $sidecarScript = Join-Path $projectRoot 'src\Start-CodexPetQuota.ps1'
 $themeStudioScript = Join-Path `
   $projectRoot `
   'src\Start-CodexPetThemeStudio.ps1'
-$probeScript = Join-Path $projectRoot 'src\quota-probe.mjs'
+$probeScript = Join-Path $projectRoot 'src\native\CodexPetProbe.exe'
+$probeSourcePath = Join-Path $projectRoot 'src\native\CodexPetProbe.cs'
+$nativeBuildScript = Join-Path $projectRoot 'packaging\Build-Native.ps1'
+if (-not (Test-Path -LiteralPath $probeScript)) {
+  & $nativeBuildScript
+}
 $results = New-Object System.Collections.Generic.List[object]
 $failures = 0
 
@@ -262,6 +267,7 @@ if ($smallIconExists) {
 }
 
 $sidecarSource = [System.IO.File]::ReadAllText($sidecarScript)
+$probeSource = [System.IO.File]::ReadAllText($probeSourcePath)
 $performanceScript = Join-Path `
   $projectRoot `
   'tests\Measure-CodexPetDockPerformance.ps1'
@@ -349,8 +355,42 @@ Add-TestResult `
   )
 Add-TestResult `
   -Area 'Power policy' `
-  -Name 'Default quota refresh is five minutes' `
-  -Passed ($sidecarSource -match '\[int\]\$RefreshSeconds\s*=\s*300')
+  -Name 'Default quota refresh is fifteen minutes' `
+  -Passed (
+    $sidecarSource -match '\[int\]\$RefreshSeconds\s*=\s*900' -and
+    $sidecarSource -match '\$quotaFreshness\.AgeSeconds\s+-ge\s+300'
+  )
+Add-TestResult `
+  -Area 'Power policy' `
+  -Name 'Quota failures use bounded exponential backoff' `
+  -Passed (
+    $sidecarSource -match '\$probeFailureCount' -and
+    $sidecarSource -match '\$nextAutomaticProbeAt' -and
+    $sidecarSource -match (
+      '(?s)\$retrySeconds\s*=\s*\[math\]::Min\(.+?' +
+      '3600.+?\[math\]::Pow'
+    )
+  )
+Add-TestResult `
+  -Area 'Data' `
+  -Name 'Weekly Token scans use a privacy-preserving file cache' `
+  -Passed (
+    $sidecarSource -match 'token-usage-cache-v1\.json' -and
+    $sidecarSource -match '--token-cache' -and
+    $probeSource -match 'class TokenUsageIndex' -and
+    $probeSource -match 'SHA256\.Create\(\)' -and
+    $probeSource -match 'filesParsed' -and
+    $probeSource -match 'cacheHits'
+  )
+Add-TestResult `
+  -Area 'Reliability' `
+  -Name 'Native probe terminates its app-server process tree' `
+  -Passed (
+    $probeSource -match 'class ChildProcessJob' -and
+    $probeSource -match 'KillOnJobClose' -and
+    $probeSource -match 'AssignProcessToJobObject' -and
+    $probeSource -match 'job\.Add\(process\)'
+  )
 Add-TestResult `
   -Area 'Interaction' `
   -Name 'Pet switching invalidates stale anchors and accelerates reacquisition' `
@@ -386,6 +426,7 @@ Add-TestResult `
     $performanceSource -match 'DurationSeconds' -and
     $performanceSource -match 'averagePercentOfOneLogicalProcessor' -and
     $performanceSource -match 'peakNodeProbeProcesses' -and
+    $performanceSource -match 'peakQuotaProbeProcesses' -and
     $performanceDocumentSource -match '0\.2083%' -and
     $performanceDocumentSource -match 'not a guarantee' -and
     $performanceDocumentSource -match 'does not measure GPU energy'
@@ -427,7 +468,8 @@ try {
     -NoProfile `
     -ExecutionPolicy RemoteSigned `
     -File $sidecarScript `
-    -PanelLayoutDiagnostics 2>&1
+    -PanelLayoutDiagnostics `
+    -Language 'en-US' 2>&1
   $panelLayoutExit = $LASTEXITCODE
   $panelLayout = (
     ($panelLayoutOutput -join [Environment]::NewLine) |
@@ -543,7 +585,8 @@ try {
     -NoProfile `
     -ExecutionPolicy RemoteSigned `
     -File $themeStudioScript `
-    -Diagnostics 2>&1
+    -Diagnostics `
+    -Language 'en-US' 2>&1
   $studioDiagnosticsExit = $LASTEXITCODE
   $studioDiagnostics = (
     ($studioDiagnosticsOutput -join [Environment]::NewLine) |
@@ -566,7 +609,8 @@ try {
     -NoProfile `
     -ExecutionPolicy RemoteSigned `
     -File $themeStudioScript `
-    -LayoutDiagnostics 2>&1
+    -LayoutDiagnostics `
+    -Language 'en-US' 2>&1
   $studioLayoutExit = $LASTEXITCODE
   $studioLayout = (
     ($studioLayoutOutput -join [Environment]::NewLine) |
@@ -657,6 +701,14 @@ Add-TestResult `
     $installerSource -match 'Test-Path -LiteralPath \$runRegistryPath' -and
     $installerSource -match 'Remove-ItemProperty' -and
     $installerSource -match 'CodexPetDock'
+  )
+Add-TestResult `
+  -Area 'Packaging' `
+  -Name 'End users do not need Node or a .NET SDK' `
+  -Passed (
+    $installerSource -match 'src\\native\\CodexPetProbe\.exe' -and
+    $installerSource -notmatch 'Get-Command node' -and
+    $installerSource -notmatch 'node --version'
   )
 try {
   $installerValidation = & powershell.exe `
@@ -938,21 +990,17 @@ Add-TestResult `
   -Detail ('exit=' + [string]$invalidExit)
 
 if ($null -ne $diagnostics) {
-  $nodeCommand = Get-Command node.exe -ErrorAction SilentlyContinue
-  if ($null -eq $nodeCommand) {
-    $nodeCommand = Get-Command node -ErrorAction SilentlyContinue
-  }
-  if ($null -eq $nodeCommand) {
-    Add-TestResult `
-      -Area 'Data' `
-      -Name 'Node probe is available' `
-      -Passed $false `
-      -Detail 'node was not found'
-  } else {
-    try {
-      $probeOutput = & $nodeCommand.Source `
-        $probeScript `
-        --codex ([string]$diagnostics.codexExecutable) 2>&1
+  $probeCachePath = Join-Path `
+    ([System.IO.Path]::GetTempPath()) `
+    (
+      'codex-pet-dock-regression-' +
+      [guid]::NewGuid().ToString('N') +
+      '.json'
+    )
+  try {
+      $probeOutput = & $probeScript `
+        --codex ([string]$diagnostics.codexExecutable) `
+        --token-cache $probeCachePath 2>&1
       $probeExit = $LASTEXITCODE
       $probeText = $probeOutput -join [Environment]::NewLine
       $probe = $probeText | ConvertFrom-Json
@@ -990,13 +1038,59 @@ if ($null -ne $diagnostics) {
         -Area 'Privacy' `
         -Name 'Probe output excludes credential and message fields' `
         -Passed $privacyOk
-    } catch {
+
+      $cachedProbeOutput = & $probeScript `
+        --codex ([string]$diagnostics.codexExecutable) `
+        --token-cache $probeCachePath 2>&1
+      $cachedProbeExit = $LASTEXITCODE
+      $cachedProbeText = (
+        $cachedProbeOutput -join [Environment]::NewLine
+      )
+      $cachedProbe = $cachedProbeText | ConvertFrom-Json
+      $cachePreservesTotals = (
+        $cachedProbeExit -eq 0 -and
+        [long]$cachedProbe.tokenStats.weeklyTokens -ge
+          [long]$tokenStats.weeklyTokens -and
+        [int]$cachedProbe.tokenStats.filesParsed -le 2 -and
+        [int]$cachedProbe.tokenStats.cacheHits -ge
+          (
+            [int]$cachedProbe.tokenStats.scannedSessions -
+            [int]$cachedProbe.tokenStats.filesParsed
+          )
+      )
+      Add-TestResult `
+        -Area 'Data' `
+        -Name 'Warm Token cache reuses unchanged sessions' `
+        -Passed $cachePreservesTotals `
+        -Detail (
+          'hits=' +
+          [string]$cachedProbe.tokenStats.cacheHits +
+          ', parsed=' +
+          [string]$cachedProbe.tokenStats.filesParsed
+        )
+
+      $cacheText = [System.IO.File]::ReadAllText(
+        $probeCachePath,
+        [System.Text.Encoding]::UTF8
+      )
+      $cachePrivacyOk = $cacheText -notmatch (
+        '(?i)([\\/]+sessions[\\/]+|\.jsonl|' +
+        'accessToken|refreshToken|authJson|messageText|email)'
+      )
+      Add-TestResult `
+        -Area 'Privacy' `
+        -Name 'Token cache contains hashes and numeric aggregates only' `
+        -Passed $cachePrivacyOk
+  } catch {
       Add-TestResult `
         -Area 'Data' `
         -Name 'Official app-server probe succeeds' `
         -Passed $false `
         -Detail $_.Exception.Message
-    }
+  } finally {
+      if ([System.IO.File]::Exists($probeCachePath)) {
+        [System.IO.File]::Delete($probeCachePath)
+      }
   }
 }
 
@@ -1250,14 +1344,14 @@ public static class CodexPetDockTestNative
             -Filter (
               'ParentProcessId = ' +
               [string]$integrationProcess.Id +
-              " AND Name = 'node.exe'"
+              " AND Name = 'CodexPetProbe.exe'"
             )
         )
         Add-TestResult `
           -Area 'Performance' `
           -Name 'Hidden pet has no quota probe process' `
           -Passed ($probeChildren.Count -eq 0) `
-          -Detail ('nodeChildren=' + [string]$probeChildren.Count)
+          -Detail ('nativeProbeChildren=' + [string]$probeChildren.Count)
       } catch {
         Add-TestResult `
           -Area 'Performance' `

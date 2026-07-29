@@ -5,7 +5,7 @@ param(
   [int]$BaseOffsetY = 0,
   [string]$Theme = '',
   [ValidateRange(15, 3600)]
-  [int]$RefreshSeconds = 300,
+  [int]$RefreshSeconds = 900,
   [ValidateRange(0, 86400)]
   [int]$RunSeconds = 0,
   [switch]$AllowMultipleInstances,
@@ -1010,15 +1010,15 @@ function Quote-NativeArgument {
   return '"' + $Value.Replace('\', '\\').Replace('"', '\"') + '"'
 }
 
-function Get-NodeExecutable {
-  $command = Get-Command node.exe -ErrorAction SilentlyContinue
-  if ($null -eq $command) {
-    $command = Get-Command node -ErrorAction SilentlyContinue
+function Get-NativeProbeExecutable {
+  $candidate = Join-Path $PSScriptRoot 'native\CodexPetProbe.exe'
+  if (-not (Test-Path -LiteralPath $candidate)) {
+    throw (
+      'CodexPetProbe.exe is missing. Reinstall Codex Pet Dock or run ' +
+      'packaging\Build-Native.ps1 before starting from source.'
+    )
   }
-  if ($null -eq $command) {
-    throw 'Node.js 22 or newer is required.'
-  }
-  return $command.Source
+  return [System.IO.Path]::GetFullPath($candidate)
 }
 
 function Get-CodexExecutable {
@@ -1463,17 +1463,18 @@ function Get-PetMascotBounds {
 
 function Start-QuotaProbe {
   param(
-    [Parameter(Mandatory = $true)][string]$NodeExecutable,
-    [Parameter(Mandatory = $true)][string]$CodexExecutable
+    [Parameter(Mandatory = $true)][string]$ProbeExecutable,
+    [Parameter(Mandatory = $true)][string]$CodexExecutable,
+    [Parameter(Mandatory = $true)][string]$TokenCachePath
   )
 
-  $probeScript = Join-Path $PSScriptRoot 'quota-probe.mjs'
   $startInfo = New-Object System.Diagnostics.ProcessStartInfo
-  $startInfo.FileName = $NodeExecutable
+  $startInfo.FileName = $ProbeExecutable
   $startInfo.Arguments = (
-    (Quote-NativeArgument $probeScript) +
-    ' --codex ' +
-    (Quote-NativeArgument $CodexExecutable)
+    '--codex ' +
+    (Quote-NativeArgument $CodexExecutable) +
+    ' --token-cache ' +
+    (Quote-NativeArgument $TokenCachePath)
   )
   $startInfo.UseShellExecute = $false
   $startInfo.CreateNoWindow = $true
@@ -1631,7 +1632,7 @@ function Get-MonitorWorkArea {
   return $info.Work
 }
 
-$nodeExecutable = Get-NodeExecutable
+$probeExecutable = Get-NativeProbeExecutable
 $codexExecutable = Get-CodexExecutable
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $configDirectory = if (
@@ -1642,6 +1643,7 @@ $configDirectory = if (
   [System.IO.Path]::GetFullPath($ConfigDirectoryOverride)
 }
 $configPath = Join-Path $configDirectory 'config.json'
+$tokenCachePath = Join-Path $configDirectory 'token-usage-cache-v1.json'
 $customThemesDirectory = Join-Path $configDirectory 'themes'
 $welcomeMarkerPath = Join-Path $configDirectory 'welcome-0.3-shown'
 $legacyConfigPath = Join-Path `
@@ -2294,7 +2296,10 @@ $script:themeAnchorLift = 21
 if ($Diagnostics) {
   $petWindow = Get-PetWindow
   $petMascotBounds = Get-PetMascotBounds -PetWindow $petWindow
-  $probe = Start-QuotaProbe -NodeExecutable $nodeExecutable -CodexExecutable $codexExecutable
+  $probe = Start-QuotaProbe `
+    -ProbeExecutable $probeExecutable `
+    -CodexExecutable $codexExecutable `
+    -TokenCachePath $tokenCachePath
   if (-not $probe.WaitForExit(20000)) {
     $probe.Kill()
     throw 'Quota diagnostics timed out.'
@@ -2568,6 +2573,8 @@ $latestQuota = $null
 $latestError = $null
 $probeProcess = $null
 $lastProbeStartedAt = [DateTime]::MinValue
+$nextAutomaticProbeAt = [DateTime]::MinValue
+$probeFailureCount = 0
 $startedAt = [DateTime]::Now
 $currentPetWindow = $null
 $lastPetVisibleAt = [DateTime]::MinValue
@@ -3025,9 +3032,13 @@ function Begin-QuotaRefresh {
   }
   $script:latestError = $null
   $script:probeProcess = Start-QuotaProbe `
-    -NodeExecutable $nodeExecutable `
-    -CodexExecutable $codexExecutable
+    -ProbeExecutable $probeExecutable `
+    -CodexExecutable $codexExecutable `
+    -TokenCachePath $tokenCachePath
   $script:lastProbeStartedAt = [DateTime]::Now
+  $script:nextAutomaticProbeAt = (
+    $script:lastProbeStartedAt.AddSeconds($RefreshSeconds)
+  )
 }
 
 function Stop-QuotaRefresh {
@@ -3057,11 +3068,14 @@ function Toggle-QuotaPanel {
     $currentPetWindow.Visible
   ) {
     $panel.Show()
+    $quotaFreshness = Get-QuotaFreshness
     if (
       $null -eq $script:probeProcess -and
       (
-        [DateTime]::Now - $script:lastProbeStartedAt
-      ).TotalSeconds -ge 30
+        $null -eq $quotaFreshness.AgeSeconds -or
+        [int]$quotaFreshness.AgeSeconds -ge 300
+      ) -and
+      ([DateTime]::Now - $script:lastProbeStartedAt).TotalSeconds -ge 60
     ) {
       Begin-QuotaRefresh
     }
@@ -3730,8 +3744,26 @@ $timer.Add_Tick({
     try {
       $script:latestQuota = Read-QuotaProbe -Process $script:probeProcess
       $script:latestError = $null
+      $script:probeFailureCount = 0
+      $script:nextAutomaticProbeAt = (
+        [DateTime]::Now.AddSeconds($RefreshSeconds)
+      )
     } catch {
       $script:latestError = $_.Exception.Message
+      $script:probeFailureCount = [math]::Min(
+        3,
+        [int]$script:probeFailureCount + 1
+      )
+      $retrySeconds = [math]::Min(
+        3600,
+        $RefreshSeconds * [math]::Pow(
+          2,
+          [int]$script:probeFailureCount - 1
+        )
+      )
+      $script:nextAutomaticProbeAt = (
+        [DateTime]::Now.AddSeconds([int]$retrySeconds)
+      )
     } finally {
       $script:probeProcess = $null
       Update-QuotaUi
@@ -3742,7 +3774,7 @@ $timer.Add_Tick({
     $null -ne $script:currentPetWindow -and
     $script:currentPetWindow.Visible -and
     $null -eq $script:probeProcess -and
-    ([DateTime]::Now - $script:lastProbeStartedAt).TotalSeconds -ge $RefreshSeconds
+    [DateTime]::Now -ge $script:nextAutomaticProbeAt
   ) {
     Begin-QuotaRefresh
   }

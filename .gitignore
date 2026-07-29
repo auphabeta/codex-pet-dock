@@ -1,10 +1,12 @@
 # Build and release artifacts
 /dist/
+/src/native/*.exe
 
 # Local regression output
 /tests/last-regression.*.txt
 /tests/last-regression.pid.txt
 /tests/.theme-switch-*/
+/tests/fixtures/performance/bin/
 
 # Runtime state and logs
 *.log

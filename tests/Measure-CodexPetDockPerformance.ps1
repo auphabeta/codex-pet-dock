@@ -114,6 +114,7 @@ $handleSamples = New-Object System.Collections.Generic.List[int]
 $threadSamples = New-Object System.Collections.Generic.List[int]
 $childSamples = New-Object System.Collections.Generic.List[int]
 $nodeChildSamples = New-Object System.Collections.Generic.List[int]
+$quotaProbeChildSamples = New-Object System.Collections.Generic.List[int]
 $observedChildNames = New-Object System.Collections.Generic.HashSet[string]
 
 for ($second = 0; $second -lt $DurationSeconds; $second++) {
@@ -131,6 +132,12 @@ for ($second = 0; $second -lt $DurationSeconds; $second++) {
   $nodeChildSamples.Add([int]@(
     $childProcesses |
       Where-Object { $_.Name -eq 'node.exe' }
+  ).Count)
+  $quotaProbeChildSamples.Add([int]@(
+    $childProcesses |
+      Where-Object {
+        $_.Name -in @('CodexPetProbe.exe', 'node.exe')
+      }
   ).Count)
   foreach ($childProcess in $childProcesses) {
     [void]$observedChildNames.Add([string]$childProcess.Name)
@@ -232,6 +239,9 @@ $state = if (
     )
     peakNodeProbeProcesses = [int](
       ($nodeChildSamples | Measure-Object -Maximum).Maximum
+    )
+    peakQuotaProbeProcesses = [int](
+      ($quotaProbeChildSamples | Measure-Object -Maximum).Maximum
     )
     observedChildProcessNames = @($observedChildNames | Sort-Object)
     visibleWindowsAtStart = $visibleWindowsAtStart

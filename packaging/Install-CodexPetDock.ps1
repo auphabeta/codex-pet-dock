@@ -36,35 +36,20 @@ $uninstallRegistryPath = (
 )
 
 function Assert-PreviewPrerequisites {
-  $nodeCommand = Get-Command node.exe -ErrorAction SilentlyContinue
-  if ($null -eq $nodeCommand) {
-    $nodeCommand = Get-Command node -ErrorAction SilentlyContinue
-  }
-  if ($null -eq $nodeCommand) {
-    throw (
-      'This Preview requires Node.js 22 or newer. ' +
-      'The future self-contained release will remove this dependency.'
-    )
-  }
-
-  $nodeVersionText = (& $nodeCommand.Source --version).TrimStart('v')
-  $nodeMajor = 0
-  [void][int]::TryParse(
-    ($nodeVersionText -split '\.')[0],
-    [ref]$nodeMajor
-  )
-  if ($nodeMajor -lt 22) {
-    throw (
-      'Node.js 22 or newer is required; found ' +
-      $nodeVersionText +
-      '.'
-    )
+  $nativeProbePath = Join-Path `
+    $sourceRoot `
+    'src\native\CodexPetProbe.exe'
+  if (-not (Test-Path -LiteralPath $nativeProbePath)) {
+    $nativeBuildScript = Join-Path $PSScriptRoot 'Build-Native.ps1'
+    if (Test-Path -LiteralPath $nativeBuildScript) {
+      & $nativeBuildScript
+    }
   }
 
   foreach ($relativePath in @(
     'CodexPetDock.vbs',
     'src\Start-CodexPetQuota.ps1',
-    'src\quota-probe.mjs',
+    'src\native\CodexPetProbe.exe',
     'assets\branding\codex-pet-dock.ico'
   )) {
     $sourcePath = Join-Path $sourceRoot $relativePath
@@ -121,6 +106,15 @@ Stop-InstalledPreview
 [void][System.IO.Directory]::CreateDirectory($installRoot)
 [void][System.IO.Directory]::CreateDirectory($stateRoot)
 [void][System.IO.Directory]::CreateDirectory($startMenuRoot)
+
+foreach ($obsoleteRelativePath in @(
+  'src\quota-probe.mjs'
+)) {
+  $obsoletePath = Join-Path $installRoot $obsoleteRelativePath
+  if ([System.IO.File]::Exists($obsoletePath)) {
+    [System.IO.File]::Delete($obsoletePath)
+  }
+}
 
 foreach ($directory in @('src', 'assets', 'docs')) {
   Copy-Item `

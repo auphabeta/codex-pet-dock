@@ -36,11 +36,12 @@ Dream Skin 当前为 Windows 用户提供 `Setup.exe`、托盘操作、主题切
 - `RuntimeIdentifier=win-x64`；
 - `OutputType=WinExe`。
 
-将 PowerShell 中的窗口/UIA/托盘逻辑迁入 C#，将
-`quota-probe.mjs` 的 JSONL app-server 客户端和 Token 聚合迁入同一
-进程。最终用户不再需要 Node.js，也不会看到 PowerShell 控制台。
+额度 JSONL app-server 客户端和 Token 聚合已经迁入
+`CodexPetProbe.exe`，最终用户不再需要 Node.js。下一阶段继续将 PowerShell
+中的窗口、UIA 与托盘逻辑迁入 `CodexPetDock.exe`，消除常驻 PowerShell
+运行时；安装和 Theme Studio 仍可使用系统自带 PowerShell。
 
-不要把 Node 与 PowerShell 静默打包进安装器作为长期方案；那会增加体积、
+不要把 Node 或 PowerShell 运行时静默打包进安装器作为长期方案；那会增加体积、
 安全软件误报和维护面。
 
 ### 2. 每用户安装器

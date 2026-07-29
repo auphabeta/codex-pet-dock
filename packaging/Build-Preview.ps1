@@ -20,6 +20,8 @@ if (-not $resolvedDistRoot.StartsWith(
   throw 'Refusing to build outside the project workspace.'
 }
 
+& (Join-Path $PSScriptRoot 'Build-Native.ps1')
+
 [void][System.IO.Directory]::CreateDirectory($distRoot)
 foreach ($target in @($stagingRoot, $zipPath, $checksumPath)) {
   if (Test-Path -LiteralPath $target) {
@@ -58,6 +60,26 @@ Copy-Item `
     Join-Path $stagingRoot 'tests\fixtures\custom-theme\theme.json'
   ) `
   -Force
+[void][System.IO.Directory]::CreateDirectory(
+  (Join-Path $stagingRoot 'tests\fixtures\performance')
+)
+foreach ($performanceFixture in @(
+  'NativeWinFormsShell.cs',
+  'README.md'
+)) {
+  Copy-Item `
+    -LiteralPath (
+      Join-Path `
+        $projectRoot `
+        ('tests\fixtures\performance\' + $performanceFixture)
+    ) `
+    -Destination (
+      Join-Path `
+        $stagingRoot `
+        ('tests\fixtures\performance\' + $performanceFixture)
+    ) `
+    -Force
+}
 [void][System.IO.Directory]::CreateDirectory(
   (Join-Path $stagingRoot 'assets\branding')
 )
