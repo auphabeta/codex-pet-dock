@@ -98,7 +98,7 @@ Pet Dock 不依赖某一只宠物的图片或动作。用户在 Codex 中切换�
 
 ## 下载与安装
 
-当前 Preview 支持 Windows 11，需要：
+当前 Beta 支持 64 位 Windows 11，需要：
 
 - 已安装并登录 Codex 桌面客户端；
 - Codex 宠物功能可以正常打开。
@@ -106,13 +106,25 @@ Pet Dock 不依赖某一只宠物的图片或动作。用户在 Codex 中切换�
 额度探测已内置为 `CodexPetProbe.exe`，用户不需要安装 Node.js、npm、.NET SDK
 或其他开发工具。
 
-安装步骤：
+推荐安装：
 
 1. 前往 [Releases](https://github.com/hjxccc/codex-pet-dock/releases) 下载最新的
-   `CodexPetDock-*.zip`；
-2. 解压 ZIP；
-3. 双击 `Install-Preview.cmd`；
-4. 安装器会创建开始菜单入口、启用当前用户登录自启，并立即启动 Pet Dock。
+   `CodexPetDock-Setup-*.exe`；
+2. 对照同一 Release 中的 `SHA256SUMS.txt` 校验文件；
+3. 双击 Setup，按向导完成安装；
+4. 安装器会创建开始菜单和卸载入口，默认启用当前用户登录自启，并可立即启动
+   Pet Dock。
+
+覆盖安装新版本会保留语言、底座和自定义主题。卸载可从 Windows
+“设置 → 应用 → 已安装的应用”完成，默认保留
+`%LOCALAPPDATA%\CodexPetDock` 中的个人配置。
+
+需要便携或开发者安装时，仍可下载 `CodexPetDock-*.zip`，解压后运行
+`Install-Preview.cmd`。普通用户优先使用 Setup。
+
+当前 Beta 尚未配置 Authenticode 证书，Windows 可能显示“未知发布者”。
+请只从本项目 Releases 下载并核对 SHA-256；项目不会要求关闭 Defender 或
+其他安全功能。
 
 安装只作用于当前 Windows 用户，不需要管理员权限，也不会修改 Codex 的安装目录、
 `app.asar`、宠物包或快捷方式。不希望登录自启时，可随时在托盘菜单取消
@@ -133,6 +145,7 @@ Pet Dock 不依赖某一只宠物的图片或动作。用户在 Codex 中切换�
 | `Refresh` | 立即刷新额度和本周 Token |
 | `Base theme` | 切换底座，或让 Codex 创建新底座 |
 | `Language` | 在英文和简体中文之间即时切换 |
+| `Check for updates` | 打开项目 Releases 页面检查新版 |
 | `Launch at sign-in` | 登录 Windows 后在后台等待宠物出现 |
 | `Exit` | 关闭 Pet Dock |
 

@@ -43,6 +43,7 @@
     "CustomThemePrefix": "自定义 - {0}",
     "CustomThemesLoaded": "已加载 {0} 个自定义底座主题。",
     "LaunchAtSignIn": "登录 Windows 后启动",
+    "CheckForUpdates": "检查更新",
     "Language": "语言",
     "English": "English",
     "SimplifiedChinese": "简体中文",

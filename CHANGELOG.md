@@ -4,6 +4,12 @@
 
 ### Added
 
+- 新增面向普通 Windows 用户的 Inno Setup 安装器：当前用户安装、开始菜单、
+  可选桌面图标、登录自启、覆盖升级、卸载和配置保留均由 Setup 管理。
+- 新增 `Build-WindowsInstaller.ps1`，一次生成 Setup、便携 ZIP 与统一
+  `SHA256SUMS.txt`；提供证书指纹时可调用 Authenticode 签名。
+- 托盘新增 `Check for updates` / `检查更新`，由用户主动打开 Releases，
+  在具备签名和回滚前不做静默自动更新。
 - 托盘首行实时显示 `WAITING`、`CONNECTED`、额度加载、过期或错误状态。
 - 首次运行显示一次轻量提示，说明 Pet Dock 常驻托盘并会在宠物出现后自动附着。
 - 重复启动不再静默无响应；新进程通过本机命名事件唤醒已有实例并显示当前状态。

@@ -23,11 +23,15 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v4
 
-      - name: Build release package
+      - name: Install Inno Setup
+        shell: powershell
+        run: choco install innosetup --yes --no-progress
+
+      - name: Build Windows installer and portable package
         shell: powershell
         run: |
           powershell.exe -NoProfile -ExecutionPolicy RemoteSigned `
-            -File .\packaging\Build-Preview.ps1
+            -File .\packaging\Build-WindowsInstaller.ps1
 
       - name: Audit release package
         shell: powershell
@@ -35,13 +39,15 @@ jobs:
           powershell.exe -NoProfile -ExecutionPolicy RemoteSigned `
             -File .\tests\Test-ReleasePackage.ps1
 
-      - name: Upload verified package
+      - name: Upload verified Windows artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: CodexPetDock-preview
+          name: CodexPetDock-windows
           path: |
+            dist/CodexPetDock-Setup-0.3.0-beta.exe
             dist/CodexPetDock-0.3.0-beta.zip
             dist/CodexPetDock-0.3.0-beta.zip.sha256
+            dist/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 7
 
