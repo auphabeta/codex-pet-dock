@@ -303,7 +303,10 @@ Add-TestResult `
   -Area 'Power policy' `
   -Name 'No-pet polling is throttled to one second' `
   -Passed (
-    $sidecarSource -match '\$petSearchIntervalSeconds\s*=\s*1' -and
+    $sidecarSource -match (
+      '(?s)\$petSearchIntervalSeconds\s*=\s*if\s*\(.+?' +
+      '\)\s*\{\s*1\.0'
+    ) -and
     $sidecarSource -match '\$timer\.Interval\s*=\s*1000'
   )
 Add-TestResult `
@@ -320,6 +323,20 @@ Add-TestResult `
   -Area 'Power policy' `
   -Name 'Default quota refresh is five minutes' `
   -Passed ($sidecarSource -match '\[int\]\$RefreshSeconds\s*=\s*300')
+Add-TestResult `
+  -Area 'Interaction' `
+  -Name 'Pet switching invalidates stale anchors and accelerates reacquisition' `
+  -Passed (
+    $sidecarSource -match 'Reset-PetMascotTracking -ClearLastBounds' -and
+    $sidecarSource -match '\$mascotAutomationIdentity' -and
+    $sidecarSource -match (
+      '(?s)\$petSearchIntervalSeconds\s*=\s*if\s*\(.+?' +
+      '\)\s*\{.+?\}\s*else\s*\{\s*0\.5'
+    ) -and
+    $sidecarSource -match '80\s*\r?\n\s*\}\s*else\s*\{\s*\r?\n\s*500' -and
+    $sidecarSource -match '\$lastMascotGraceSeconds' -and
+    $sidecarSource -match '0\.35'
+  )
 Add-TestResult `
   -Area 'Reliability' `
   -Name 'Single-instance guard is enabled by default' `

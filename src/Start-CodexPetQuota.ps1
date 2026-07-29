@@ -1051,7 +1051,18 @@ function Get-CodexExecutable {
 }
 
 function Get-OfficialCodexProcessIds {
-  return @(
+  $now = [DateTime]::Now
+  if (
+    $null -ne $script:officialCodexProcessIds -and
+    $null -ne $script:officialCodexProcessIdsReadAt -and
+    (
+      $now - [DateTime]$script:officialCodexProcessIdsReadAt
+    ).TotalSeconds -lt 2
+  ) {
+    return @($script:officialCodexProcessIds)
+  }
+
+  $script:officialCodexProcessIds = @(
     Get-CimInstance Win32_Process |
       Where-Object {
         $_.Name -eq 'ChatGPT.exe' -and
@@ -1059,6 +1070,8 @@ function Get-OfficialCodexProcessIds {
       } |
       Select-Object -ExpandProperty ProcessId
   )
+  $script:officialCodexProcessIdsReadAt = $now
+  return @($script:officialCodexProcessIds)
 }
 
 function Get-PetWindow {
@@ -1132,6 +1145,7 @@ function Get-PetWindow {
       Handle = $windowHandle
       ProcessId = $processIdValue
       Title = $title.ToString()
+      ZOrder = $matches.Count
       Left = $rect.Left
       Top = $rect.Top
       Right = $rect.Right
@@ -1156,6 +1170,8 @@ function Get-PetWindow {
       Expression = { if ($_.Title -eq 'Codex') { 0 } else { 1 } }
     }, @{
       Expression = { $_.Width * $_.Height }
+    }, @{
+      Expression = { $_.ZOrder }
     } |
     Select-Object -First 1
 }
@@ -1198,6 +1214,21 @@ function Get-TrackedPetWindow {
   }
 }
 
+function Reset-PetMascotTracking {
+  param([switch]$ClearLastBounds)
+
+  $script:mascotAutomationElement = $null
+  $script:mascotAutomationRoot = $null
+  $script:mascotAutomationHandle = 0
+  $script:mascotAutomationLookupAt = [DateTime]::MinValue
+  $script:mascotAutomationIdentity = ''
+  if ($ClearLastBounds) {
+    $script:lastMascotBounds = $null
+    $script:lastMascotSeenAt = [DateTime]::MinValue
+    $script:lastMascotSignature = ''
+  }
+}
+
 function Get-PetMascotBounds {
   param($PetWindow)
 
@@ -1206,20 +1237,51 @@ function Get-PetMascotBounds {
   }
 
   try {
+    $now = [DateTime]::Now
     $mascotLookupIntervalMs = if (
       (
         [CodexPetQuota.NativeMethods]::GetAsyncKeyState(0x01) -band 0x8000
       ) -ne 0 -or
-      [DateTime]::Now -lt $script:fastTrackingUntil
+      $now -lt $script:fastTrackingUntil
     ) {
-      125
+      80
     } else {
-      750
+      500
     }
+
+    $cachedMascotUsable = $false
+    if (
+      $null -ne $script:mascotAutomationElement -and
+      $script:mascotAutomationHandle -eq [Int64]$PetWindow.Handle
+    ) {
+      try {
+        $cachedRect = (
+          $script:mascotAutomationElement.Current.BoundingRectangle
+        )
+        $cachedMascotUsable = (
+          ([string]$script:mascotAutomationElement.Current.ClassName).
+            StartsWith('codex-avatar-button') -and
+          -not $script:mascotAutomationElement.Current.IsOffscreen -and
+          $cachedRect.Width -gt 0 -and
+          $cachedRect.Height -gt 0
+        )
+      } catch {
+        $cachedMascotUsable = $false
+      }
+    }
+    if (
+      $null -ne $script:mascotAutomationElement -and
+      -not $cachedMascotUsable
+    ) {
+      $script:mascotAutomationElement = $null
+      $script:mascotAutomationLookupAt = [DateTime]::MinValue
+      $script:fastTrackingUntil = $now.AddMilliseconds(1500)
+    }
+
     $mascotLookupExpired = (
       $null -eq $script:mascotAutomationLookupAt -or
       (
-        [DateTime]::Now - [DateTime]$script:mascotAutomationLookupAt
+        $now - [DateTime]$script:mascotAutomationLookupAt
       ).TotalMilliseconds -ge $mascotLookupIntervalMs
     )
     $needsMascotLookup = (
@@ -1261,16 +1323,47 @@ function Get-PetMascotBounds {
               [double]$candidateRect.Width *
               [double]$candidateRect.Height
             )
-            if ($candidateArea -gt $selectedArea) {
+            # React can briefly keep both pets in the automation tree while
+            # switching. Equal-sized replacements are appended after the old
+            # node, so prefer the later visible candidate.
+            if ($candidateArea -ge $selectedArea) {
               $selectedArea = $candidateArea
               $selectedMascot = $element
             }
           }
         }
       }
+
+      if ($null -ne $selectedMascot) {
+        $selectedIdentity = try {
+          (
+            ($selectedMascot.GetRuntimeId() -join '.') +
+            '|' +
+            [string]$selectedMascot.Current.Name
+          )
+        } catch {
+          (
+            [string]$selectedMascot.Current.ClassName +
+            '|' +
+            [string]$selectedMascot.Current.Name
+          )
+        }
+        if (
+          -not [string]::IsNullOrWhiteSpace(
+            [string]$script:mascotAutomationIdentity
+          ) -and
+          $selectedIdentity -ne $script:mascotAutomationIdentity
+        ) {
+          $script:lastMascotBounds = $null
+          $script:lastMascotSeenAt = [DateTime]::MinValue
+          $script:lastMascotSignature = ''
+          $script:fastTrackingUntil = $now.AddMilliseconds(1500)
+        }
+        $script:mascotAutomationIdentity = $selectedIdentity
+      }
       $script:mascotAutomationElement = $selectedMascot
       $script:mascotAutomationHandle = [Int64]$PetWindow.Handle
-      $script:mascotAutomationLookupAt = [DateTime]::Now
+      $script:mascotAutomationLookupAt = $now
     }
 
     if ($null -eq $script:mascotAutomationElement) {
@@ -1328,6 +1421,7 @@ function Get-PetMascotBounds {
     $script:mascotAutomationRoot = $null
     $script:mascotAutomationHandle = 0
     $script:mascotAutomationLookupAt = [DateTime]::MinValue
+    $script:fastTrackingUntil = [DateTime]::Now.AddMilliseconds(1500)
     return $null
   }
 }
@@ -2443,10 +2537,13 @@ $startedAt = [DateTime]::Now
 $currentPetWindow = $null
 $lastPetVisibleAt = [DateTime]::MinValue
 $lastPetSearchAt = [DateTime]::MinValue
+$officialCodexProcessIds = $null
+$officialCodexProcessIdsReadAt = [DateTime]::MinValue
 $mascotAutomationElement = $null
 $mascotAutomationRoot = $null
 $mascotAutomationHandle = 0
 $mascotAutomationLookupAt = [DateTime]::MinValue
+$mascotAutomationIdentity = ''
 $lastMascotBounds = $null
 $lastMascotSeenAt = [DateTime]::MinValue
 $lastMascotSignature = ''
@@ -3354,14 +3451,28 @@ $timer.Add_Tick({
     return
   }
 
+  $previousPetHandle = if ($null -ne $script:currentPetWindow) {
+    [Int64]$script:currentPetWindow.Handle
+  } else {
+    0
+  }
   $trackedPetWindow = Get-TrackedPetWindow `
     -PetWindow $script:currentPetWindow
-  $petSearchIntervalSeconds = 1
+  $petSearchIntervalSeconds = if (
+    $null -eq $trackedPetWindow -or
+    -not $trackedPetWindow.Visible
+  ) {
+    1.0
+  } else {
+    0.5
+  }
+  $shouldSearchForPetWindow = (
+    $null -eq $trackedPetWindow -or
+    -not $trackedPetWindow.Visible -or
+    $null -eq $script:mascotAutomationElement
+  )
   if (
-    (
-      $null -eq $trackedPetWindow -or
-      -not $trackedPetWindow.Visible
-    ) -and
+    $shouldSearchForPetWindow -and
     (
       [DateTime]::Now - $script:lastPetSearchAt
     ).TotalSeconds -ge $petSearchIntervalSeconds
@@ -3373,8 +3484,24 @@ $timer.Add_Tick({
         -NotePropertyName Visible `
         -NotePropertyValue $true `
         -Force
-      $trackedPetWindow = $replacementPetWindow
+      if (
+        $null -eq $trackedPetWindow -or
+        -not $trackedPetWindow.Visible -or
+        [Int64]$replacementPetWindow.Handle -ne
+          [Int64]$trackedPetWindow.Handle
+      ) {
+        $trackedPetWindow = $replacementPetWindow
+      }
     }
+  }
+  $nextPetHandle = if ($null -ne $trackedPetWindow) {
+    [Int64]$trackedPetWindow.Handle
+  } else {
+    0
+  }
+  if ($nextPetHandle -ne $previousPetHandle) {
+    Reset-PetMascotTracking -ClearLastBounds
+    $script:fastTrackingUntil = [DateTime]::Now.AddMilliseconds(1500)
   }
   $script:currentPetWindow = $trackedPetWindow
 
@@ -3407,6 +3534,13 @@ $timer.Add_Tick({
   } else {
     $mascotBounds = Get-PetMascotBounds `
       -PetWindow $script:currentPetWindow
+    $lastMascotGraceSeconds = if (
+      [DateTime]::Now -lt $script:fastTrackingUntil
+    ) {
+      0.35
+    } else {
+      1.25
+    }
     if ($null -ne $mascotBounds) {
       $script:lastMascotBounds = $mascotBounds
       $script:lastMascotSeenAt = [DateTime]::Now
@@ -3418,11 +3552,13 @@ $timer.Add_Tick({
       )
       if ($mascotSignature -ne $script:lastMascotSignature) {
         $script:lastMascotSignature = $mascotSignature
-        $script:fastTrackingUntil = [DateTime]::Now.AddMilliseconds(850)
+        $script:fastTrackingUntil = [DateTime]::Now.AddMilliseconds(1500)
       }
     } elseif (
       $null -ne $script:lastMascotBounds -and
-      ([DateTime]::Now - $script:lastMascotSeenAt).TotalSeconds -le 2
+      (
+        [DateTime]::Now - $script:lastMascotSeenAt
+      ).TotalSeconds -le $lastMascotGraceSeconds
     ) {
       $mascotBounds = $script:lastMascotBounds
     }
@@ -3461,9 +3597,7 @@ $timer.Add_Tick({
       $petBase.Hide()
       $panel.Hide()
       $script:currentPetWindow = $null
-      $script:mascotAutomationElement = $null
-      $script:mascotAutomationRoot = $null
-      $script:mascotAutomationHandle = 0
+      Reset-PetMascotTracking -ClearLastBounds
     } else {
       $baseLeft = [math]::Max(
         $baseWorkingArea.Left,
@@ -3562,10 +3696,7 @@ $timer.Add_Tick({
     $petBase.Hide()
     $panel.Hide()
     $script:currentPetWindow = $null
-    $script:mascotAutomationElement = $null
-    $script:mascotAutomationRoot = $null
-    $script:mascotAutomationHandle = 0
-    $script:mascotAutomationLookupAt = [DateTime]::MinValue
+    Reset-PetMascotTracking -ClearLastBounds
     Write-SidecarLog -Message (
       'Tracking frame recovered: ' + $_.Exception.Message
     )
