@@ -79,6 +79,7 @@ foreach ($themeSkillFile in $themeSkillFiles) {
 )
 foreach ($testScript in @(
   'Test-CodexPetDock.ps1',
+  'Test-ReleasePackage.ps1',
   'Measure-CodexPetDockPerformance.ps1'
 )) {
   Copy-Item `

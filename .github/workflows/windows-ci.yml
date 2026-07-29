@@ -1,0 +1,47 @@
+name: Windows CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release-package:
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Build release package
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -ExecutionPolicy RemoteSigned `
+            -File .\packaging\Build-Preview.ps1
+
+      - name: Audit release package
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -ExecutionPolicy RemoteSigned `
+            -File .\tests\Test-ReleasePackage.ps1
+
+      - name: Upload verified package
+        uses: actions/upload-artifact@v4
+        with:
+          name: CodexPetDock-preview
+          path: |
+            dist/CodexPetDock-0.3.0-beta.zip
+            dist/CodexPetDock-0.3.0-beta.zip.sha256
+          if-no-files-found: error
+          retention-days: 7
+
