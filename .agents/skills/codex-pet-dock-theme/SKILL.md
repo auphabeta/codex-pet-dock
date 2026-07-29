@@ -51,8 +51,8 @@ names, geometry, files, and validation yourself.
    Parse the JSON report and select the target result. Pass only when
    `report.ok` is true; its target has true `switched`, `persisted`,
    `layoutFits`, `controlSizeFits`, `fontFits`, `contactFits`, and
-   `dragDelegatesToPet`; and `alphaCoverage >= 0.95`. This includes native
-   pet-window drag delegation. Never lower a threshold.
+   `dragDelegatesToPet`; and `alphaCoverage >= 0.95`.
+   Require native pet-window drag delegation. Never lower a threshold.
 7. Only after validation, install the two files under
    `%LOCALAPPDATA%\CodexPetDock\themes\<id>`.
    **🔴 CHECKPOINT — overwrite:** if that directory already exists, show the
