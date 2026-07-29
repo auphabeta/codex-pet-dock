@@ -3477,6 +3477,7 @@ function Apply-UiLanguage {
   $languageMenuItem.Text = Get-UiText -Key 'Language'
   $englishLanguageItem.Text = Get-UiText -Key 'English'
   $chineseLanguageItem.Text = Get-UiText -Key 'SimplifiedChinese'
+  $checkForUpdatesMenuItem.Text = Get-UiText -Key 'CheckForUpdates'
   $launchAtSignInMenuItem.Text = Get-UiText -Key 'LaunchAtSignIn'
   $exitMenuItem.Text = Get-UiText -Key 'Exit'
   $englishLanguageItem.Checked = ($script:uiLanguage -eq 'en-US')
@@ -3501,6 +3502,24 @@ $englishLanguageItem.Add_Click($languageClickHandler)
 $chineseLanguageItem.Add_Click($languageClickHandler)
 [void]$trayMenu.Items.Add($languageMenuItem)
 
+$checkForUpdatesMenuItem = New-Object System.Windows.Forms.ToolStripMenuItem
+$checkForUpdatesMenuItem.Text = Get-UiText -Key 'CheckForUpdates'
+$checkForUpdatesMenuItem.Add_Click({
+  try {
+    $releasePage = New-Object System.Diagnostics.ProcessStartInfo
+    $releasePage.FileName = (
+      'https://github.com/hjxccc/codex-pet-dock/releases'
+    )
+    $releasePage.UseShellExecute = $true
+    [void][System.Diagnostics.Process]::Start($releasePage)
+  } catch {
+    Write-SidecarLog -Message (
+      'Could not open the release page: ' + $_.Exception.Message
+    )
+  }
+})
+[void]$trayMenu.Items.Add($checkForUpdatesMenuItem)
+
 $launchAtSignInMenuItem = New-Object System.Windows.Forms.ToolStripMenuItem
 $launchAtSignInMenuItem.Text = Get-UiText -Key 'LaunchAtSignIn'
 $launchAtSignInMenuItem.Checked = Get-LaunchAtSignInEnabled
@@ -3517,6 +3536,9 @@ $launchAtSignInMenuItem.Add_Click({
     )
   }
 })
+[void]$trayMenu.Items.Add(
+  (New-Object System.Windows.Forms.ToolStripSeparator)
+)
 [void]$trayMenu.Items.Add($launchAtSignInMenuItem)
 [void]$trayMenu.Items.Add(
   (New-Object System.Windows.Forms.ToolStripSeparator)

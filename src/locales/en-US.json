@@ -43,6 +43,7 @@
     "CustomThemePrefix": "Custom - {0}",
     "CustomThemesLoaded": "{0} custom base theme(s) loaded.",
     "LaunchAtSignIn": "Launch at sign-in",
+    "CheckForUpdates": "Check for updates",
     "Language": "Language",
     "English": "English",
     "SimplifiedChinese": "简体中文",
