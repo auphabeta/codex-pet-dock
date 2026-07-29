@@ -757,12 +757,15 @@ $previewBuildSource = Get-Content `
   -LiteralPath $previewBuildPath
 Add-TestResult `
   -Area 'Packaging' `
-  -Name 'README demo is visible while release package excludes the MP4' `
+  -Name 'README embeds the demo while release package excludes the MP4' `
   -Passed (
     (Test-Path -LiteralPath $demoVideoPath) -and
     (Test-Path -LiteralPath $demoPosterPath) -and
-    $readmeSource -match 'docs/video/yanshi-cover\.jpg' -and
-    $readmeSource -match 'docs/video/yanshi\.mp4' -and
+    $readmeSource -match (
+      'https://github\.com/user-attachments/assets/' +
+      '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-' +
+      '[0-9a-f]{4}-[0-9a-f]{12}'
+    ) -and
     $previewBuildSource -match "docs\\video\\yanshi\.mp4"
   )
 try {

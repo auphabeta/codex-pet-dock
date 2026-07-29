@@ -4,9 +4,7 @@
 
 ## 33 秒看懂 Codex Pet Dock
 
-[![播放 Codex Pet Dock 33 秒演示：切换宠物、查看额度与更换底座](docs/video/yanshi-cover.jpg)](https://github.com/hjxccc/codex-pet-dock/blob/main/docs/video/yanshi.mp4)
-
-**[▶ 点击播放完整演示（33 秒）](https://github.com/hjxccc/codex-pet-dock/blob/main/docs/video/yanshi.mp4)**
+https://github.com/user-attachments/assets/5a6e2cb5-298c-444a-9b9c-7adc35ea8ce7
 
 ## 为什么做这个工具
 
