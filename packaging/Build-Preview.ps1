@@ -38,10 +38,15 @@ foreach ($directory in @('src', 'docs', 'packaging')) {
 [void][System.IO.Directory]::CreateDirectory(
   (Join-Path $stagingRoot 'tests')
 )
-Copy-Item `
-  -LiteralPath (Join-Path $projectRoot 'tests\Test-CodexPetDock.ps1') `
-  -Destination (Join-Path $stagingRoot 'tests\Test-CodexPetDock.ps1') `
-  -Force
+foreach ($testScript in @(
+  'Test-CodexPetDock.ps1',
+  'Measure-CodexPetDockPerformance.ps1'
+)) {
+  Copy-Item `
+    -LiteralPath (Join-Path $projectRoot ('tests\' + $testScript)) `
+    -Destination (Join-Path $stagingRoot ('tests\' + $testScript)) `
+    -Force
+}
 [void][System.IO.Directory]::CreateDirectory(
   (Join-Path $stagingRoot 'tests\fixtures\custom-theme')
 )

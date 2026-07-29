@@ -262,6 +262,34 @@ if ($smallIconExists) {
 }
 
 $sidecarSource = [System.IO.File]::ReadAllText($sidecarScript)
+$performanceScript = Join-Path `
+  $projectRoot `
+  'tests\Measure-CodexPetDockPerformance.ps1'
+$performanceDocument = Join-Path $projectRoot 'docs\performance.md'
+$performanceSource = if (Test-Path -LiteralPath $performanceScript) {
+  [System.IO.File]::ReadAllText($performanceScript)
+} else {
+  ''
+}
+$performanceDocumentSource = if (
+  Test-Path -LiteralPath $performanceDocument
+) {
+  [System.IO.File]::ReadAllText(
+    $performanceDocument,
+    [System.Text.Encoding]::UTF8
+  )
+} else {
+  ''
+}
+$performanceTokens = $null
+$performanceParseErrors = $null
+if (Test-Path -LiteralPath $performanceScript) {
+  [void][System.Management.Automation.Language.Parser]::ParseFile(
+    $performanceScript,
+    [ref]$performanceTokens,
+    [ref]$performanceParseErrors
+  )
+}
 $englishLocalePath = Join-Path $projectRoot 'src\locales\en-US.json'
 $chineseLocalePath = Join-Path $projectRoot 'src\locales\zh-CN.json'
 $englishLocaleSource = [System.IO.File]::ReadAllText(
@@ -347,6 +375,20 @@ Add-TestResult `
     $sidecarSource -match '\$basePositionChanged -or \$zOrderMaintenanceDue' -and
     $sidecarSource -match 'TotalMilliseconds -ge 1000' -and
     $sidecarSource -match 'Extend-FastTracking -Milliseconds 400'
+  )
+Add-TestResult `
+  -Area 'Performance' `
+  -Name 'Reproducible benchmark and honest reference report are included' `
+  -Passed (
+    (Test-Path -LiteralPath $performanceScript) -and
+    (Test-Path -LiteralPath $performanceDocument) -and
+    @($performanceParseErrors).Count -eq 0 -and
+    $performanceSource -match 'DurationSeconds' -and
+    $performanceSource -match 'averagePercentOfOneLogicalProcessor' -and
+    $performanceSource -match 'peakNodeProbeProcesses' -and
+    $performanceDocumentSource -match '0\.2083%' -and
+    $performanceDocumentSource -match 'not a guarantee' -and
+    $performanceDocumentSource -match 'does not measure GPU energy'
   )
 Add-TestResult `
   -Area 'Reliability' `

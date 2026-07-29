@@ -208,6 +208,16 @@ URL、绝对路径、目录穿越、符号链接、超大文件与不安全尺�
 - 宠物静止时降低跟随频率，拖动期间才短暂提升刷新率；额度默认每 5 分钟刷新一次，
   也可从托盘手动刷新。
 
+在一台 16 线程 i7-11800H Windows 11 机器上，宠物与底座可见、无主动拖动时，
+两次连续 30 秒实测均消耗 `1.000 CPU 秒`：约为单逻辑核心的 `3.333%`，
+折算整机 CPU 容量约 `0.2083%`。平均工作集约 `170–171 MB`，其中包含
+Windows PowerShell、WinForms、UI Automation 与图片资源；两次采样均没有
+`node.exe` 额度探测子进程。该数据是本机参考，不代表所有设备，也不等同于
+功耗或电池续航测试。
+
+完整环境、两次原始结果、状态策略、限制和一键复测命令见
+[`docs/performance.md`](docs/performance.md)。
+
 更多说明见 [`PRIVACY.md`](PRIVACY.md) 和 [`SECURITY.md`](SECURITY.md)。
 
 ## 常见问题
@@ -258,6 +268,7 @@ Pet Dock 不调用 `npm`，只直接执行 `node.exe`。此弹窗通常表示 No
 | Vibe Coding 自定义主题提示词 | [`docs/vibe-custom-theme-prompt.md`](docs/vibe-custom-theme-prompt.md) |
 | 安装、更新与独立可执行文件路线 | [`docs/distribution.md`](docs/distribution.md) |
 | 一键接入方案 | [`docs/one-click-onboarding.md`](docs/one-click-onboarding.md) |
+| 可复现性能测量 | [`docs/performance.md`](docs/performance.md) |
 | 可行性与升级兼容性 | [`docs/feasibility.md`](docs/feasibility.md) |
 | 效果图原文件与校验值 | [`docs/media/screenshots/`](docs/media/screenshots/README.md) |
 
