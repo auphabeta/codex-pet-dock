@@ -279,6 +279,3 @@ powershell -NoProfile -ExecutionPolicy RemoteSigned `
 powershell -NoProfile -ExecutionPolicy RemoteSigned `
   -File .\packaging\Build-Preview.ps1
 ```
-
-参考：[OpenAI Codex app-server 文档](https://github.com/openai/codex/blob/main/codex-rs/app-server/README.md)、
-[Codex Dream Skin](https://github.com/Fei-Away/Codex-Dream-Skin)。
