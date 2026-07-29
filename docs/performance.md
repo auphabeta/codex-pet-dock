@@ -5,6 +5,16 @@ spend work only while the pet is visible and moving, but it is not a
 single-digit-megabyte native process. This document records reproducible local
 measurements instead of describing it only as "lightweight".
 
+## Plain-language conclusion
+
+On the reference PC, leaving the pet and dock visible but idle used about
+`0.21%` of the machine's total CPU capacity and about `170 MB` of memory.
+In practical terms, its idle CPU impact was small. It did not keep a Node quota
+probe running in the background; following speeds up temporarily during pet
+movement, slows down again after movement stops, and quota probing pauses when
+there is no visible pet. Results vary by machine and this is not a battery-life
+or hardware-power claim.
+
 ## Reference measurement
 
 Measured on 2026-07-29 with commit `3654bed` and the installed
