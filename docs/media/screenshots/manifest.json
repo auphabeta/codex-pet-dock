@@ -142,5 +142,15 @@
     "height": 241,
     "bytes": 37812,
     "sha256": "F3A0A4A6E3FEDF98D0AF9D1D4579B15F84B46AF801DBC5B55CAA8B3504B29AD5"
+  },
+  {
+    "file": "custom-golden-nimbus-details.png",
+    "theme": "hjxccc.golden-nimbus",
+    "pet": "capybara",
+    "purpose": "custom-theme-example",
+    "width": 665,
+    "height": 255,
+    "bytes": 72754,
+    "sha256": "734B46326D292D81A03A5834ABF3B3ADD70268BF54FDB1C02277DC8355915DAD"
   }
 ]

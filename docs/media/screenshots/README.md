@@ -13,7 +13,7 @@ Captured: 2026-07-29
 - Theme gallery: use the eight `capybara-*` images
 - Pet switching demo: compare the three `pet-switch-*-holo-cyan-*` pets
 - Animation compatibility demo: use the standing, sitting, and running girl captures
-- Custom-theme article: pair one detail screenshot with the Codex creation flow
+- Custom-theme example: `custom-golden-nimbus-details.png`
 - Exact dimensions and SHA-256 values: see `manifest.json`
 
 Before publishing publicly, decide whether to keep or blur the exact Token
@@ -106,6 +106,15 @@ change without separating the base from the pet.
 ![Girl pet sitting on the Princess Cradle base](pet-switch-girl-princess-sitting-details.png)
 
 ## How users add a custom base
+
+### Golden Nimbus, created from one sentence
+
+![Capybara pet on a custom pale-gold Golden Nimbus base](custom-golden-nimbus-details.png)
+
+This installed theme started from one plain-language request. Codex generated
+the transparent artwork and data-only manifest, rejected the first candidate
+when metric coverage was too low, recalibrated it, then installed and
+hot-reloaded the validated result.
 
 No source-code changes are required.
 
