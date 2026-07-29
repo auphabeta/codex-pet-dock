@@ -24,7 +24,7 @@ names, geometry, files, and validation yourself.
      directly instead of asking them to repeat it.
    - Never ask the user for dimensions, coordinates, manifest fields, or a
      theme ID. Derive the display name and stable lowercase ID yourself.
-     Prefix it with the repository owner when available, otherwise `local`.
+     Use a known author prefix when available, otherwise `local`.
    - Ask one concise follow-up only when a missing visual choice would
      materially change the result.
 3. Generate a real transparent PNG containing only the base, preferably
@@ -48,10 +48,11 @@ names, geometry, files, and validation yourself.
      -ConfigDirectoryOverride <temporary-config-directory>
    ```
 
-   Parse the JSON report and select the target theme result. Pass only when
-   `ok`, `switched`, `persisted`, `layoutFits`, `controlSizeFits`, `fontFits`,
-   `contactFits`, and `dragDelegatesToPet` are true and `alphaCoverage >= 0.95`.
-   Do not lower a threshold to make a candidate pass.
+   Parse the JSON report and select the target result. Pass only when
+   `report.ok` is true; its target has true `switched`, `persisted`,
+   `layoutFits`, `controlSizeFits`, `fontFits`, `contactFits`, and
+   `dragDelegatesToPet`; and `alphaCoverage >= 0.95`. This includes native
+   pet-window drag delegation. Never lower a threshold.
 7. Only after validation, install the two files under
    `%LOCALAPPDATA%\CodexPetDock\themes\<id>`.
    **🔴 CHECKPOINT — overwrite:** if that directory already exists, show the
@@ -59,19 +60,19 @@ names, geometry, files, and validation yourself.
    then stop for confirmation. If declined, install under a newly derived ID
    or leave the existing theme untouched.
 8. Signal the named event `Local\CodexPetDock.ReloadThemes` when it exists.
-   If it does not exist, use `Reload custom themes` from the tray and confirm
-   the target appears in the catalog.
-9. If a pet is visible, select the theme without editing Codex, inspect its
-   contact, two metrics, and expanded card, then restart only Pet Dock once and
-   confirm restoration. If unsafe or unavailable, mark this check pending and
-   give the exact tray path.
+   Otherwise report `Reload custom themes` as the exact tray recovery path;
+   do not automate the menu.
+9. Only when installation or end-to-end validation was requested and a pet is
+   visible, select the theme without editing Codex, inspect contact, metrics,
+   and the card, then restart only Pet Dock once and confirm restoration. If
+   unsafe or unavailable, mark this check pending and give the tray path.
 10. Report paths, dimensions, alpha corners, diagnostic fields, repair rounds,
     reload, visual and restart results, plus the selection path.
 
 ## Validation recovery
 
-Make at most three candidate rounds. Each round changes only the failing
-property, then reruns the complete temporary diagnostic.
+Make at most three candidate rounds, counting the initial candidate as round
+one. Repair one failure or coupled failure cluster, then rerun all diagnostics.
 
 | Trigger | One repair | If it still fails |
 |---|---|---|
