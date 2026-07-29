@@ -18,6 +18,12 @@ For manual authoring, choose `Open custom themes folder`, create one
 subdirectory, and place `theme.json` plus one PNG inside it. Choose
 `Reload custom themes` after editing; restarting the application is not required.
 
+Prefer Vibe Coding? Copy the ready-made task prompt in
+[`vibe-custom-theme-prompt.md`](vibe-custom-theme-prompt.md) into Codex,
+Claude Code, or another local coding agent. It instructs the agent to create,
+validate, install, and hot-reload one data-only theme without modifying Codex
+or Pet Dock source code.
+
 The application creates `theme.example.json` in the custom theme root. Copy its
 contents into the new subdirectory as `theme.json`.
 

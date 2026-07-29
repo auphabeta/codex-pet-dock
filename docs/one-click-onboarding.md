@@ -160,11 +160,11 @@ Codex Pet Dock 使用 Codex 自己的 `app-server` 登录状态。额外提供�
 
 - 创建开始菜单快捷方式：默认开启；
 - 安装完成立即启动：默认开启；
-- 登录 Windows 时启动：默认关闭，并说明开启后会自动等待 Codex；
+- 登录 Windows 时启动：默认开启，并说明会低频等待 Codex、可随时关闭；
 - 创建桌面快捷方式：默认关闭。
 
-用户以后可以在托盘中切换 `Launch at sign-in`。开启一次后，Pet Dock
-随 Windows 登录在托盘低频等待；用户每次打开 Codex 和宠物时会自动附着，
+用户以后可以在托盘中切换 `Launch at sign-in`。默认安装后，Pet Dock 随
+Windows 登录在托盘低频等待；用户每次打开 Codex 和宠物时会自动附着，
 不需要使用特殊的“Codex + Dock”快捷方式。
 
 ### 升级

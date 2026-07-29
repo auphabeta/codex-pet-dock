@@ -1,11 +1,15 @@
 [CmdletBinding()]
 param(
   [switch]$LaunchAtSignIn,
+  [switch]$DoNotLaunchAtSignIn,
   [switch]$DoNotLaunch,
   [switch]$ValidateOnly
 )
 
 $ErrorActionPreference = 'Stop'
+if ($LaunchAtSignIn -and $DoNotLaunchAtSignIn) {
+  throw 'Choose either -LaunchAtSignIn or -DoNotLaunchAtSignIn, not both.'
+}
 $productName = 'Codex Pet Dock'
 $productVersion = '0.3.0-beta'
 $sourceRoot = Split-Path -Parent $PSScriptRoot
@@ -197,14 +201,22 @@ foreach ($entry in $uninstallValues.GetEnumerator()) {
     -Force)
 }
 
-if ($LaunchAtSignIn) {
-  [void](New-Item -Path $runRegistryPath -Force)
+$enableLaunchAtSignIn = $LaunchAtSignIn -or -not $DoNotLaunchAtSignIn
+if ($enableLaunchAtSignIn) {
+  if (-not (Test-Path -LiteralPath $runRegistryPath)) {
+    [void](New-Item -Path $runRegistryPath)
+  }
   [void](New-ItemProperty `
     -Path $runRegistryPath `
     -Name 'CodexPetDock' `
     -Value ('"' + $wscriptPath + '" "' + $launcherPath + '"') `
     -PropertyType String `
     -Force)
+} else {
+  Remove-ItemProperty `
+    -LiteralPath $runRegistryPath `
+    -Name 'CodexPetDock' `
+    -ErrorAction SilentlyContinue
 }
 
 if (-not $DoNotLaunch) {
@@ -216,4 +228,8 @@ if (-not $DoNotLaunch) {
 
 Write-Host ($productName + ' ' + $productVersion + ' installed.')
 Write-Host ('Location: ' + $installRoot)
+Write-Host (
+  'Launch at sign-in: ' +
+  $(if ($enableLaunchAtSignIn) { 'enabled' } else { 'disabled' })
+)
 Write-Host 'Configuration is preserved separately under LocalAppData.'

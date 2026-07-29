@@ -262,6 +262,43 @@ if ($smallIconExists) {
 }
 
 $sidecarSource = [System.IO.File]::ReadAllText($sidecarScript)
+$englishLocalePath = Join-Path $projectRoot 'src\locales\en-US.json'
+$chineseLocalePath = Join-Path $projectRoot 'src\locales\zh-CN.json'
+$englishLocaleSource = [System.IO.File]::ReadAllText(
+  $englishLocalePath,
+  [System.Text.Encoding]::UTF8
+)
+$chineseLocaleSource = [System.IO.File]::ReadAllText(
+  $chineseLocalePath,
+  [System.Text.Encoding]::UTF8
+)
+$englishLocale = $englishLocaleSource | ConvertFrom-Json
+$chineseLocale = $chineseLocaleSource | ConvertFrom-Json
+$englishAppKeys = @($englishLocale.app.PSObject.Properties.Name | Sort-Object)
+$chineseAppKeys = @($chineseLocale.app.PSObject.Properties.Name | Sort-Object)
+$englishStudioKeys = @(
+  $englishLocale.studio.PSObject.Properties.Name |
+    Sort-Object
+)
+$chineseStudioKeys = @(
+  $chineseLocale.studio.PSObject.Properties.Name |
+    Sort-Object
+)
+Add-TestResult `
+  -Area 'Localization' `
+  -Name 'English and Chinese locale contracts have matching keys' `
+  -Passed (
+    (Test-Path -LiteralPath $englishLocalePath) -and
+    (Test-Path -LiteralPath $chineseLocalePath) -and
+    (($englishAppKeys -join '|') -eq ($chineseAppKeys -join '|')) -and
+    (($englishStudioKeys -join '|') -eq ($chineseStudioKeys -join '|'))
+  ) `
+  -Detail (
+    'app=' +
+    [string]$englishAppKeys.Count +
+    ', studio=' +
+    [string]$englishStudioKeys.Count
+  )
 Add-TestResult `
   -Area 'Power policy' `
   -Name 'No-pet polling is throttled to one second' `
@@ -303,17 +340,17 @@ Add-TestResult `
   -Area 'Onboarding' `
   -Name 'Tray exposes waiting, connected, and duplicate-launch status' `
   -Passed (
-    $sidecarSource -match 'WAITING.+Open Codex pet' -and
-    $sidecarSource -match 'CONNECTED.+Loading quota' -and
-    $sidecarSource -match 'already running'
+    $englishLocaleSource -match 'WAITING.+Open Codex pet' -and
+    $englishLocaleSource -match 'CONNECTED.+Loading quota' -and
+    $englishLocaleSource -match 'already running'
   )
 Add-TestResult `
   -Area 'Data trust' `
   -Name 'Quota freshness and local Token semantics are explicit' `
   -Passed (
-    $sidecarSource -match 'STALE DATA' -and
-    $sidecarSource -match 'LOCAL WEEK TOKENS' -and
-    $sidecarSource -match 'not billing data'
+    $englishLocaleSource -match 'STALE DATA' -and
+    $englishLocaleSource -match 'LOCAL WEEK TOKENS' -and
+    $englishLocaleSource -match 'not billing data'
   )
 try {
   $panelLayoutOutput = & powershell.exe `
@@ -336,6 +373,8 @@ try {
     -Passed (
       $panelLayoutExit -eq 0 -and
       $panelLayout.ok -and
+      [string]$panelLayout.language -eq 'en-US' -and
+      $panelLayout.baseMetricsFontFits -and
       [int]$panelLayout.overlapCount -eq 0 -and
       $clippedPanelControls.Count -eq 0
     ) `
@@ -355,6 +394,51 @@ try {
     -Passed $false `
     -Detail $_.Exception.Message
 }
+try {
+  $chinesePanelLayoutOutput = & powershell.exe `
+    -NoProfile `
+    -ExecutionPolicy RemoteSigned `
+    -File $sidecarScript `
+    -PanelLayoutDiagnostics `
+    -Language 'zh-CN' 2>&1
+  $chinesePanelLayoutExit = $LASTEXITCODE
+  $chinesePanelLayout = (
+    ($chinesePanelLayoutOutput -join [Environment]::NewLine) |
+      ConvertFrom-Json
+  )
+  $clippedChinesePanelControls = @(
+    $chinesePanelLayout.controls |
+      Where-Object { -not $_.textFits -or -not $_.insidePanel }
+  )
+  Add-TestResult `
+    -Area 'Localization' `
+    -Name 'Chinese Dock and detail panel text fit without overlap' `
+    -Passed (
+      $chinesePanelLayoutExit -eq 0 -and
+      $chinesePanelLayout.ok -and
+      [string]$chinesePanelLayout.language -eq 'zh-CN' -and
+      [string]$chinesePanelLayout.baseLeftHeader -eq
+        [string]$chineseLocale.app.WeekLeft -and
+      [string]$chinesePanelLayout.baseRightHeader -eq
+        [string]$chineseLocale.app.WeekTokens -and
+      $chinesePanelLayout.baseMetricsFontFits -and
+      [int]$chinesePanelLayout.overlapCount -eq 0 -and
+      $clippedChinesePanelControls.Count -eq 0
+    ) `
+    -Detail (
+      [string]$chinesePanelLayout.panelWidth +
+      'x' +
+      [string]$chinesePanelLayout.panelHeight +
+      ', clipped=' +
+      [string]$clippedChinesePanelControls.Count
+    )
+} catch {
+  Add-TestResult `
+    -Area 'Localization' `
+    -Name 'Chinese Dock and detail panel text fit without overlap' `
+    -Passed $false `
+    -Detail $_.Exception.Message
+}
 Add-TestResult `
   -Area 'Custom themes' `
   -Name 'Theme Studio and hot reload entry points exist' `
@@ -362,7 +446,27 @@ Add-TestResult `
     (Test-Path -LiteralPath $themeStudioScript) -and
     $sidecarSource -match 'Start-CodexPetThemeStudio\.ps1' -and
     $sidecarSource -match 'Local\\CodexPetDock\.ReloadThemes' -and
-    $sidecarSource -match 'Reload custom themes'
+    $englishLocaleSource -match 'Reload custom themes'
+  )
+$vibePromptPath = Join-Path `
+  $projectRoot `
+  'docs\vibe-custom-theme-prompt.md'
+$vibePromptSource = if (Test-Path -LiteralPath $vibePromptPath) {
+  Get-Content -Raw -Encoding UTF8 -LiteralPath $vibePromptPath
+} else {
+  ''
+}
+Add-TestResult `
+  -Area 'Custom themes' `
+  -Name 'Vibe Coding prompt preserves the data-only safety contract' `
+  -Passed (
+    -not [string]::IsNullOrWhiteSpace($vibePromptSource) -and
+    $vibePromptSource -match '%LOCALAPPDATA%\\CodexPetDock\\themes' -and
+    $vibePromptSource -match 'theme\.json' -and
+    $vibePromptSource -match 'platform\.png' -and
+    $vibePromptSource -match 'app\.asar' -and
+    $vibePromptSource -match 'ThemeSwitchDiagnostics' -and
+    $vibePromptSource -match 'Reload custom themes'
   )
 try {
   $studioDiagnosticsOutput = & powershell.exe `
@@ -381,6 +485,8 @@ try {
     -Passed (
       $studioDiagnosticsExit -eq 0 -and
       $studioDiagnostics.ok -and
+      [string]$studioDiagnostics.language -eq 'en-US' -and
+      @($studioDiagnostics.supportedLanguages).Count -eq 2 -and
       $studioDiagnostics.supportsHotReload -and
       -not $studioDiagnostics.executableFieldsAllowed -and
       [int]$studioDiagnostics.schemaVersion -eq 1
@@ -402,6 +508,7 @@ try {
     -Passed (
       $studioLayoutExit -eq 0 -and
       $studioLayout.ok -and
+      [string]$studioLayout.language -eq 'en-US' -and
       @($studioLayout.controls).Count -ge 20
     ) `
     -Detail (
@@ -410,6 +517,51 @@ try {
       [string]$studioLayout.clientHeight +
       ', controls=' +
       [string]@($studioLayout.controls).Count
+    )
+
+  $chineseStudioDiagnosticsOutput = & powershell.exe `
+    -NoProfile `
+    -ExecutionPolicy RemoteSigned `
+    -File $themeStudioScript `
+    -Diagnostics `
+    -Language 'zh-CN' 2>&1
+  $chineseStudioDiagnosticsExit = $LASTEXITCODE
+  $chineseStudioDiagnostics = (
+    ($chineseStudioDiagnosticsOutput -join [Environment]::NewLine) |
+      ConvertFrom-Json
+  )
+  $chineseStudioLayoutOutput = & powershell.exe `
+    -NoProfile `
+    -ExecutionPolicy RemoteSigned `
+    -File $themeStudioScript `
+    -LayoutDiagnostics `
+    -Language 'zh-CN' 2>&1
+  $chineseStudioLayoutExit = $LASTEXITCODE
+  $chineseStudioLayout = (
+    ($chineseStudioLayoutOutput -join [Environment]::NewLine) |
+      ConvertFrom-Json
+  )
+  $badChineseStudioControls = @(
+    $chineseStudioLayout.controls |
+      Where-Object { -not $_.insideClient -or -not $_.textFits }
+  )
+  Add-TestResult `
+    -Area 'Localization' `
+    -Name 'Chinese Theme Studio contract and controls are complete' `
+    -Passed (
+      $chineseStudioDiagnosticsExit -eq 0 -and
+      $chineseStudioDiagnostics.ok -and
+      [string]$chineseStudioDiagnostics.language -eq 'zh-CN' -and
+      $chineseStudioLayoutExit -eq 0 -and
+      $chineseStudioLayout.ok -and
+      [string]$chineseStudioLayout.language -eq 'zh-CN' -and
+      $badChineseStudioControls.Count -eq 0
+    ) `
+    -Detail (
+      'controls=' +
+      [string]@($chineseStudioLayout.controls).Count +
+      ', clipped=' +
+      [string]$badChineseStudioControls.Count
     )
 } catch {
   Add-TestResult `
@@ -422,6 +574,20 @@ try {
 $installerScript = Join-Path `
   $projectRoot `
   'packaging\Install-CodexPetDock.ps1'
+$installerSource = Get-Content `
+  -Raw `
+  -Encoding UTF8 `
+  -LiteralPath $installerScript
+Add-TestResult `
+  -Area 'Packaging' `
+  -Name 'One-click install enables startup without recreating the Run key' `
+  -Passed (
+    $installerSource -match '\$enableLaunchAtSignIn = ' -and
+    $installerSource -match '\[switch\]\$DoNotLaunchAtSignIn' -and
+    $installerSource -match 'Test-Path -LiteralPath \$runRegistryPath' -and
+    $installerSource -match 'Remove-ItemProperty' -and
+    $installerSource -match 'CodexPetDock'
+  )
 try {
   $installerValidation = & powershell.exe `
     -NoProfile `
@@ -516,6 +682,7 @@ try {
     -File $sidecarScript `
     -ThemeSwitchDiagnostics `
     -AllowMultipleInstances `
+    -Language 'zh-CN' `
     -ConfigDirectoryOverride $themeDiagnosticState 2>&1
   $themeSwitchExit = $LASTEXITCODE
   $themeSwitchReport = (
@@ -577,6 +744,42 @@ try {
     -Area 'Custom themes' `
     -Name 'Custom theme with executable field is rejected' `
     -Passed $rejectedScriptTheme
+
+  $savedLocalizedConfig = Get-Content `
+    -Raw `
+    -Encoding UTF8 `
+    -LiteralPath (Join-Path $themeDiagnosticState 'config.json') |
+      ConvertFrom-Json
+  $localizedRestartOutput = & powershell.exe `
+    -NoProfile `
+    -ExecutionPolicy RemoteSigned `
+    -File $sidecarScript `
+    -PanelLayoutDiagnostics `
+    -ConfigDirectoryOverride $themeDiagnosticState 2>&1
+  $localizedRestartExit = $LASTEXITCODE
+  $localizedRestart = (
+    ($localizedRestartOutput -join [Environment]::NewLine) |
+      ConvertFrom-Json
+  )
+  Add-TestResult `
+    -Area 'Localization' `
+    -Name 'Language selection persists without losing the selected theme' `
+    -Passed (
+      [int]$savedLocalizedConfig.version -eq 2 -and
+      [string]$savedLocalizedConfig.language -eq 'zh-CN' -and
+      -not [string]::IsNullOrWhiteSpace(
+        [string]$savedLocalizedConfig.theme
+      ) -and
+      $localizedRestartExit -eq 0 -and
+      $localizedRestart.ok -and
+      [string]$localizedRestart.language -eq 'zh-CN'
+    ) `
+    -Detail (
+      'language=' +
+      [string]$savedLocalizedConfig.language +
+      ', theme=' +
+      [string]$savedLocalizedConfig.theme
+    )
 } catch {
   Add-TestResult `
     -Area 'Interaction' `

@@ -1,6 +1,8 @@
 [CmdletBinding()]
 param(
   [string]$ConfigDirectoryOverride = '',
+  [ValidateSet('', 'en-US', 'zh-CN')]
+  [string]$Language = '',
   [switch]$Diagnostics,
   [switch]$LayoutDiagnostics
 )
@@ -14,6 +16,69 @@ $configDirectory = if (
   [System.IO.Path]::GetFullPath($ConfigDirectoryOverride)
 }
 $customThemesDirectory = Join-Path $configDirectory 'themes'
+$configPath = Join-Path $configDirectory 'config.json'
+$script:uiLanguage = $Language.Trim()
+if ([string]::IsNullOrWhiteSpace($script:uiLanguage)) {
+  try {
+    $savedConfig = Get-Content -Raw -Encoding UTF8 -LiteralPath $configPath |
+      ConvertFrom-Json
+    $script:uiLanguage = [string]$savedConfig.language
+  } catch {
+    $script:uiLanguage = 'en-US'
+  }
+}
+if ($script:uiLanguage -notin @('en-US', 'zh-CN')) {
+  $script:uiLanguage = 'en-US'
+}
+
+$localeDirectory = Join-Path $PSScriptRoot 'locales'
+
+function Import-StudioLocale {
+  param([Parameter(Mandatory = $true)][string]$Locale)
+
+  $localePath = Join-Path $localeDirectory ($Locale + '.json')
+  if (-not (Test-Path -LiteralPath $localePath)) {
+    throw 'UI locale file was not found: ' + $localePath
+  }
+  return Get-Content -Raw -Encoding UTF8 -LiteralPath $localePath |
+    ConvertFrom-Json
+}
+
+$script:studioText = @{
+  'en-US' = (Import-StudioLocale -Locale 'en-US').studio
+  'zh-CN' = (Import-StudioLocale -Locale 'zh-CN').studio
+}
+
+function Get-StudioText {
+  param(
+    [Parameter(Mandatory = $true)][string]$Key,
+    [object[]]$Arguments = @()
+  )
+
+  $languageTable = $script:studioText[$script:uiLanguage]
+  $property = if ($null -ne $languageTable) {
+    $languageTable.PSObject.Properties[$Key]
+  } else {
+    $null
+  }
+  if ($null -eq $property) {
+    $languageTable = $script:studioText['en-US']
+    $property = $languageTable.PSObject.Properties[$Key]
+  }
+  if ($null -eq $property) {
+    throw 'Missing Theme Studio text key: ' + $Key
+  }
+  $template = [string]$property.Value
+  if ($Arguments.Count -eq 0) {
+    return $template
+  }
+  return [string]::Format(
+    [Globalization.CultureInfo]::InvariantCulture,
+    $template,
+    [object[]]$Arguments
+  )
+}
+
 $manifestFields = @(
   'schemaVersion',
   'id',
@@ -36,6 +101,8 @@ if ($Diagnostics) {
     ok = $true
     editorVersion = 1
     schemaVersion = 1
+    language = $script:uiLanguage
+    supportedLanguages = @('en-US', 'zh-CN')
     customThemeRoot = $customThemesDirectory
     manifestFields = $manifestFields
     supportsHotReload = $true
@@ -62,6 +129,10 @@ namespace CodexPetDockStudio
     public sealed class ThemePreview : Control
     {
         private Image texture;
+        private string leftHeader = "WEEK LEFT";
+        private string rightHeader = "WEEK TOKENS";
+        private string contactHint =
+            "Dashed line = visible contact surface - exact runtime geometry";
         public Image Texture
         {
             get { return texture; }
@@ -76,6 +147,21 @@ namespace CodexPetDockStudio
         public int MetricsScrimOpacity { get; set; }
         public bool CompactMetrics { get; set; }
         public Color Accent { get; set; }
+        public string LeftHeader
+        {
+            get { return leftHeader; }
+            set { leftHeader = value ?? "WEEK LEFT"; Invalidate(); }
+        }
+        public string RightHeader
+        {
+            get { return rightHeader; }
+            set { rightHeader = value ?? "WEEK TOKENS"; Invalidate(); }
+        }
+        public string ContactHint
+        {
+            get { return contactHint; }
+            set { contactHint = value ?? ""; Invalidate(); }
+        }
 
         public ThemePreview()
         {
@@ -200,8 +286,8 @@ namespace CodexPetDockStudio
                 RectangleF rightTitle = new RectangleF(baseX + half, metricTop, half, 10f * scale);
                 RectangleF leftValue = new RectangleF(baseX, metricTop + 8f * scale, half, 22f * scale);
                 RectangleF rightValue = new RectangleF(baseX + half, metricTop + 8f * scale, half, 22f * scale);
-                g.DrawString("WEEK LEFT", micro, muted, leftTitle, center);
-                g.DrawString("WEEK TOKENS", micro, muted, rightTitle, center);
+                g.DrawString(leftHeader, micro, muted, leftTitle, center);
+                g.DrawString(rightHeader, micro, muted, rightTitle, center);
                 g.DrawString("85%", value, text, leftValue, center);
                 g.DrawString("525M", value, text, rightValue, center);
             }
@@ -249,7 +335,7 @@ namespace CodexPetDockStudio
             using (Brush hintBrush = new SolidBrush(Color.FromArgb(145, 158, 178)))
             {
                 g.DrawString(
-                    "Dashed line = visible contact surface - exact runtime geometry",
+                    contactHint,
                     hint,
                     hintBrush,
                     new PointF(22f, Height - 28f)
@@ -331,7 +417,7 @@ function New-DarkNumeric {
 [void][System.IO.Directory]::CreateDirectory($customThemesDirectory)
 
 $form = New-Object System.Windows.Forms.Form
-$form.Text = 'Codex Pet Dock - Theme Studio'
+$form.Text = Get-StudioText -Key 'FormTitle'
 $form.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterScreen
 $form.ClientSize = New-Object System.Drawing.Size 980, 650
 $form.MinimumSize = New-Object System.Drawing.Size 996, 689
@@ -347,7 +433,7 @@ if (Test-Path -LiteralPath $iconPath) {
 }
 
 $title = New-Object System.Windows.Forms.Label
-$title.Text = 'CUSTOM BASE STUDIO'
+$title.Text = Get-StudioText -Key 'Title'
 $title.Location = New-Object System.Drawing.Point 24, 18
 $title.Size = New-Object System.Drawing.Size 600, 32
 $title.Font = New-Object System.Drawing.Font 'Segoe UI Semibold', 17
@@ -355,13 +441,16 @@ $title.ForeColor = [System.Drawing.Color]::FromArgb(241, 247, 255)
 $form.Controls.Add($title)
 
 $subtitle = New-Object System.Windows.Forms.Label
-$subtitle.Text = 'Drop in a transparent PNG, align the contact surface, then save. No code is allowed.'
+$subtitle.Text = Get-StudioText -Key 'Subtitle'
 $subtitle.Location = New-Object System.Drawing.Point 26, 51
 $subtitle.Size = New-Object System.Drawing.Size 720, 24
 $subtitle.ForeColor = [System.Drawing.Color]::FromArgb(142, 158, 181)
 $form.Controls.Add($subtitle)
 
 $preview = New-Object CodexPetDockStudio.ThemePreview
+$preview.LeftHeader = Get-StudioText -Key 'WeekLeft'
+$preview.RightHeader = Get-StudioText -Key 'WeekTokens'
+$preview.ContactHint = Get-StudioText -Key 'ContactHint'
 $preview.Location = New-Object System.Drawing.Point 24, 86
 $preview.Size = New-Object System.Drawing.Size 620, 500
 $preview.Anchor = (
@@ -373,27 +462,35 @@ $preview.Anchor = (
 $form.Controls.Add($preview)
 
 $rightX = 676
-$form.Controls.Add((New-DarkLabel -Text 'Theme name' -X $rightX -Y 88))
+$form.Controls.Add((
+  New-DarkLabel -Text (Get-StudioText -Key 'ThemeName') -X $rightX -Y 88
+))
 $nameBox = New-DarkTextBox -X $rightX -Y 109 -Width 274
-$nameBox.Text = 'My Custom Base'
+$nameBox.Text = Get-StudioText -Key 'DefaultThemeName'
 $form.Controls.Add($nameBox)
 
-$form.Controls.Add((New-DarkLabel -Text 'Stable theme ID' -X $rightX -Y 143))
+$form.Controls.Add((
+  New-DarkLabel -Text (Get-StudioText -Key 'StableThemeId') -X $rightX -Y 143
+))
 $idBox = New-DarkTextBox -X $rightX -Y 164 -Width 274
-$idBox.Text = 'your-name.custom-base'
+$idBox.Text = Get-StudioText -Key 'DefaultThemeId'
 $form.Controls.Add($idBox)
 
-$form.Controls.Add((New-DarkLabel -Text 'Transparent PNG' -X $rightX -Y 198))
-$imageBox = New-DarkTextBox -X $rightX -Y 219 -Width 205
+$form.Controls.Add((
+  New-DarkLabel -Text (Get-StudioText -Key 'TransparentPng') -X $rightX -Y 198
+))
+$imageBox = New-DarkTextBox -X $rightX -Y 219 -Width 190
 $imageBox.ReadOnly = $true
 $form.Controls.Add($imageBox)
 $browseButton = New-Object System.Windows.Forms.Button
-$browseButton.Text = 'Browse'
-$browseButton.Location = New-Object System.Drawing.Point 888, 217
-$browseButton.Size = New-Object System.Drawing.Size 62, 28
+$browseButton.Text = Get-StudioText -Key 'Browse'
+$browseButton.Location = New-Object System.Drawing.Point 873, 217
+$browseButton.Size = New-Object System.Drawing.Size 77, 28
 $form.Controls.Add($browseButton)
 
-$form.Controls.Add((New-DarkLabel -Text 'Runtime size' -X $rightX -Y 259))
+$form.Controls.Add((
+  New-DarkLabel -Text (Get-StudioText -Key 'RuntimeSize') -X $rightX -Y 259
+))
 $widthNumeric = New-DarkNumeric -X $rightX -Y 280 -Minimum 160 -Maximum 320 -Value 224
 $heightNumeric = New-DarkNumeric -X ($rightX + 94) -Y 280 -Minimum 48 -Maximum 140 -Value 72
 $form.Controls.Add($widthNumeric)
@@ -401,27 +498,39 @@ $form.Controls.Add($heightNumeric)
 $sizeHint = New-DarkLabel -Text 'W x H' -X ($rightX + 184) -Y 283 -Width 70
 $form.Controls.Add($sizeHint)
 
-$form.Controls.Add((New-DarkLabel -Text 'Contact surface / overlap' -X $rightX -Y 317 -Width 220))
+$form.Controls.Add((
+  New-DarkLabel `
+    -Text (Get-StudioText -Key 'ContactSurface') `
+    -X $rightX `
+    -Y 317 `
+    -Width 250
+))
 $surfaceNumeric = New-DarkNumeric -X $rightX -Y 338 -Minimum 0 -Maximum 64 -Value 20
 $overlapNumeric = New-DarkNumeric -X ($rightX + 94) -Y 338 -Minimum 0 -Maximum 16 -Value 7
 $form.Controls.Add($surfaceNumeric)
 $form.Controls.Add($overlapNumeric)
 
-$form.Controls.Add((New-DarkLabel -Text 'Metrics offset / scrim' -X $rightX -Y 375 -Width 220))
+$form.Controls.Add((
+  New-DarkLabel `
+    -Text (Get-StudioText -Key 'MetricsOffset') `
+    -X $rightX `
+    -Y 375 `
+    -Width 250
+))
 $offsetNumeric = New-DarkNumeric -X $rightX -Y 396 -Minimum -12 -Maximum 80 -Value 0
 $scrimNumeric = New-DarkNumeric -X ($rightX + 94) -Y 396 -Minimum 0 -Maximum 220 -Value 120
 $form.Controls.Add($offsetNumeric)
 $form.Controls.Add($scrimNumeric)
 
 $compactCheck = New-Object System.Windows.Forms.CheckBox
-$compactCheck.Text = 'Compact metric values'
+$compactCheck.Text = Get-StudioText -Key 'CompactValues'
 $compactCheck.Location = New-Object System.Drawing.Point $rightX, 435
 $compactCheck.Size = New-Object System.Drawing.Size 190, 24
 $compactCheck.ForeColor = [System.Drawing.Color]::FromArgb(205, 216, 232)
 $form.Controls.Add($compactCheck)
 
 $accentButton = New-Object System.Windows.Forms.Button
-$accentButton.Text = 'Accent  #6FE8EF'
+$accentButton.Text = Get-StudioText -Key 'Accent' -Arguments @('#6FE8EF')
 $accentButton.Location = New-Object System.Drawing.Point $rightX, 470
 $accentButton.Size = New-Object System.Drawing.Size 178, 30
 $accentButton.BackColor = [System.Drawing.Color]::FromArgb(32, 48, 58)
@@ -430,13 +539,13 @@ $form.Controls.Add($accentButton)
 $script:accentColor = [System.Drawing.Color]::FromArgb(111, 232, 239)
 
 $openButton = New-Object System.Windows.Forms.Button
-$openButton.Text = 'Open existing'
+$openButton.Text = Get-StudioText -Key 'OpenExisting'
 $openButton.Location = New-Object System.Drawing.Point $rightX, 526
 $openButton.Size = New-Object System.Drawing.Size 112, 34
 $form.Controls.Add($openButton)
 
 $saveButton = New-Object System.Windows.Forms.Button
-$saveButton.Text = 'Save & reload'
+$saveButton.Text = Get-StudioText -Key 'SaveReload'
 $saveButton.Location = New-Object System.Drawing.Point ($rightX + 122), 526
 $saveButton.Size = New-Object System.Drawing.Size 152, 34
 $saveButton.BackColor = [System.Drawing.Color]::FromArgb(49, 100, 214)
@@ -445,7 +554,7 @@ $saveButton.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
 $form.Controls.Add($saveButton)
 
 $status = New-Object System.Windows.Forms.Label
-$status.Text = 'Ready - themes are stored locally under %LOCALAPPDATA%.'
+$status.Text = Get-StudioText -Key 'Ready'
 $status.Location = New-Object System.Drawing.Point 24, 602
 $status.Size = New-Object System.Drawing.Size 926, 28
 $status.Anchor = (
@@ -499,18 +608,18 @@ $compactCheck.Add_CheckedChanged({ Update-Preview })
 
 $browseButton.Add_Click({
   $dialog = New-Object System.Windows.Forms.OpenFileDialog
-  $dialog.Title = 'Choose a transparent base PNG'
+  $dialog.Title = Get-StudioText -Key 'ChoosePng'
   $dialog.Filter = 'PNG image (*.png)|*.png'
   $dialog.CheckFileExists = $true
   try {
     if ($dialog.ShowDialog($form) -eq [System.Windows.Forms.DialogResult]::OK) {
       Set-PreviewImage -Path $dialog.FileName
-      $status.Text = 'PNG loaded - adjust the dashed contact surface.'
+      $status.Text = Get-StudioText -Key 'PngLoaded'
     }
   } catch {
     [void][System.Windows.Forms.MessageBox]::Show(
       $_.Exception.Message,
-      'Could not load PNG',
+      (Get-StudioText -Key 'LoadPngFailed'),
       [System.Windows.Forms.MessageBoxButtons]::OK,
       [System.Windows.Forms.MessageBoxIcon]::Warning
     )
@@ -525,12 +634,15 @@ $accentButton.Add_Click({
   try {
     if ($dialog.ShowDialog($form) -eq [System.Windows.Forms.DialogResult]::OK) {
       $script:accentColor = $dialog.Color
-      $accentButton.Text = (
-        'Accent  #{0:X2}{1:X2}{2:X2}' -f
+      $accentHex = (
+        '#{0:X2}{1:X2}{2:X2}' -f
         $dialog.Color.R,
         $dialog.Color.G,
         $dialog.Color.B
       )
+      $accentButton.Text = Get-StudioText `
+        -Key 'Accent' `
+        -Arguments @($accentHex)
       Update-Preview
     }
   } finally {
@@ -540,7 +652,7 @@ $accentButton.Add_Click({
 
 $openButton.Add_Click({
   $dialog = New-Object System.Windows.Forms.FolderBrowserDialog
-  $dialog.Description = 'Choose a custom theme directory'
+  $dialog.Description = Get-StudioText -Key 'ChooseThemeDirectory'
   $dialog.SelectedPath = $customThemesDirectory
   try {
     if ($dialog.ShowDialog($form) -ne [System.Windows.Forms.DialogResult]::OK) {
@@ -552,7 +664,7 @@ $openButton.Add_Click({
       $resolvedRoot + [System.IO.Path]::DirectorySeparatorChar,
       [System.StringComparison]::OrdinalIgnoreCase
     )) {
-      throw 'Choose a directory inside the Codex Pet Dock custom themes folder.'
+      throw (Get-StudioText -Key 'DirectoryInsideRoot')
     }
     $directoryInfo = Get-Item -LiteralPath $resolvedDirectory
     if (
@@ -561,7 +673,7 @@ $openButton.Add_Click({
         [System.IO.FileAttributes]::ReparsePoint
       ) -ne 0
     ) {
-      throw 'Reparse-point theme directories are not allowed.'
+      throw (Get-StudioText -Key 'ReparseDirectory')
     }
     $manifestPath = Join-Path $resolvedDirectory 'theme.json'
     $manifestInfo = Get-Item -LiteralPath $manifestPath
@@ -572,7 +684,7 @@ $openButton.Add_Click({
         [System.IO.FileAttributes]::ReparsePoint
       ) -ne 0
     ) {
-      throw 'theme.json is too large or is a reparse point.'
+      throw (Get-StudioText -Key 'ManifestUnsafe')
     }
     $manifest = Get-Content -Raw -Encoding UTF8 -LiteralPath $manifestPath |
       ConvertFrom-Json
@@ -581,14 +693,18 @@ $openButton.Add_Click({
         Where-Object { $_ -notin $manifestFields }
     )
     if ($unknown.Count -gt 0) {
-      throw 'Unsupported manifest fields: ' + ($unknown -join ', ')
+      throw (
+        Get-StudioText `
+          -Key 'UnsupportedFields' `
+          -Arguments @(($unknown -join ', '))
+      )
     }
     $assetName = ([string]$manifest.asset).Trim()
     if (
       [System.IO.Path]::GetFileName($assetName) -ne $assetName -or
       [System.IO.Path]::GetExtension($assetName).ToLowerInvariant() -ne '.png'
     ) {
-      throw 'Theme asset must be one PNG file name in the theme directory.'
+      throw (Get-StudioText -Key 'AssetFileName')
     }
     $assetPath = [System.IO.Path]::GetFullPath(
       (Join-Path $resolvedDirectory $assetName)
@@ -597,7 +713,7 @@ $openButton.Add_Click({
       $resolvedDirectory + [System.IO.Path]::DirectorySeparatorChar,
       [System.StringComparison]::OrdinalIgnoreCase
     )) {
-      throw 'Theme asset escaped its directory.'
+      throw (Get-StudioText -Key 'AssetEscaped')
     }
     $assetInfo = Get-Item -LiteralPath $assetPath
     if (
@@ -607,7 +723,7 @@ $openButton.Add_Click({
         [System.IO.FileAttributes]::ReparsePoint
       ) -ne 0
     ) {
-      throw 'Theme PNG is too large or is a reparse point.'
+      throw (Get-StudioText -Key 'AssetUnsafe')
     }
     $nameBox.Text = [string]$manifest.name
     $idBox.Text = [string]$manifest.id
@@ -620,13 +736,15 @@ $openButton.Add_Click({
     $compactCheck.Checked = [bool]$manifest.compactMetrics
     $accentText = [string]$manifest.accent
     $script:accentColor = [System.Drawing.ColorTranslator]::FromHtml($accentText)
-    $accentButton.Text = 'Accent  ' + $accentText.ToUpperInvariant()
+    $accentButton.Text = Get-StudioText `
+      -Key 'Accent' `
+      -Arguments @($accentText.ToUpperInvariant())
     Set-PreviewImage -Path $assetPath
-    $status.Text = 'Existing theme loaded - saving will update it safely.'
+    $status.Text = Get-StudioText -Key 'ExistingLoaded'
   } catch {
     [void][System.Windows.Forms.MessageBox]::Show(
       $_.Exception.Message,
-      'Could not open theme',
+      (Get-StudioText -Key 'OpenThemeFailed'),
       [System.Windows.Forms.MessageBoxButtons]::OK,
       [System.Windows.Forms.MessageBoxIcon]::Warning
     )
@@ -641,17 +759,17 @@ $saveButton.Add_Click({
     $themeId = $idBox.Text.Trim().ToLowerInvariant()
     $sourcePath = $imageBox.Text.Trim()
     if ($themeName.Length -lt 1 -or $themeName.Length -gt 40) {
-      throw 'Theme name must contain 1-40 characters.'
+      throw (Get-StudioText -Key 'NameLength')
     }
     if ($themeId -notmatch '^[a-z0-9][a-z0-9._-]{2,63}$') {
-      throw 'Theme ID must use 3-64 lowercase letters, digits, dot, dash, or underscore.'
+      throw (Get-StudioText -Key 'IdFormat')
     }
     if (
       [string]::IsNullOrWhiteSpace($sourcePath) -or
       -not (Test-Path -LiteralPath $sourcePath) -or
       [System.IO.Path]::GetExtension($sourcePath).ToLowerInvariant() -ne '.png'
     ) {
-      throw 'Choose one PNG before saving.'
+      throw (Get-StudioText -Key 'ChooseBeforeSave')
     }
     $sourceInfo = Get-Item -LiteralPath $sourcePath
     if (
@@ -661,7 +779,7 @@ $saveButton.Add_Click({
         [System.IO.FileAttributes]::ReparsePoint
       ) -ne 0
     ) {
-      throw 'The PNG must be 10 MB or smaller and cannot be a reparse point.'
+      throw (Get-StudioText -Key 'SourceUnsafe')
     }
     $sourceBitmap = Get-UnlockedBitmap -Path $sourcePath
     try {
@@ -671,7 +789,7 @@ $saveButton.Add_Click({
         $sourceBitmap.Width -gt 4096 -or
         $sourceBitmap.Height -gt 4096
       ) {
-        throw 'PNG dimensions must be between 64x32 and 4096x4096.'
+        throw (Get-StudioText -Key 'Dimensions')
       }
     } finally {
       $sourceBitmap.Dispose()
@@ -680,14 +798,14 @@ $saveButton.Add_Click({
       [int]$surfaceNumeric.Value + [int]$overlapNumeric.Value -gt
       [int]$heightNumeric.Value - 4
     ) {
-      throw 'Contact surface plus overlap exceeds the theme height.'
+      throw (Get-StudioText -Key 'ContactOverflow')
     }
     $metricsBottom = (
       $(if ($compactCheck.Checked) { 62 } else { 64 }) +
       [int]$offsetNumeric.Value
     )
     if ($metricsBottom -gt [int]$heightNumeric.Value - 2) {
-      throw 'Metric text would be clipped. Increase height or move metrics upward.'
+      throw (Get-StudioText -Key 'MetricsClipped')
     }
 
     $themeDirectory = [System.IO.Path]::GetFullPath(
@@ -698,7 +816,7 @@ $saveButton.Add_Click({
       $resolvedRoot + [System.IO.Path]::DirectorySeparatorChar,
       [System.StringComparison]::OrdinalIgnoreCase
     )) {
-      throw 'Theme directory escaped the custom theme root.'
+      throw (Get-StudioText -Key 'DirectoryEscaped')
     }
     if (Test-Path -LiteralPath $themeDirectory) {
       $directoryInfo = Get-Item -LiteralPath $themeDirectory
@@ -708,11 +826,15 @@ $saveButton.Add_Click({
           [System.IO.FileAttributes]::ReparsePoint
         ) -ne 0
       ) {
-        throw 'Reparse-point theme directories are not allowed.'
+        throw (Get-StudioText -Key 'ReparseDirectory')
       }
       $answer = [System.Windows.Forms.MessageBox]::Show(
-        'Update the existing theme "' + $themeId + '"?',
-        'Confirm theme update',
+        (
+          Get-StudioText `
+            -Key 'ConfirmUpdate' `
+            -Arguments @($themeId)
+        ),
+        (Get-StudioText -Key 'ConfirmThemeUpdate'),
         [System.Windows.Forms.MessageBoxButtons]::YesNo,
         [System.Windows.Forms.MessageBoxIcon]::Question
       )
@@ -793,14 +915,14 @@ $saveButton.Add_Click({
       )
       [void]$reloadEvent.Set()
       $reloadEvent.Dispose()
-      $status.Text = 'Saved and reloaded - select it from the Base theme menu.'
+      $status.Text = Get-StudioText -Key 'SavedReloaded'
     } catch {
-      $status.Text = 'Saved - start Codex Pet Dock to load the new theme.'
+      $status.Text = Get-StudioText -Key 'SavedStartApp'
     }
   } catch {
     [void][System.Windows.Forms.MessageBox]::Show(
       $_.Exception.Message,
-      'Could not save theme',
+      (Get-StudioText -Key 'SaveFailed'),
       [System.Windows.Forms.MessageBoxButtons]::OK,
       [System.Windows.Forms.MessageBoxIcon]::Warning
     )
@@ -822,6 +944,33 @@ if ($LayoutDiagnostics) {
   $layoutRows = @(
     $form.Controls |
       ForEach-Object {
+        $textFits = $true
+        $measuredTextWidth = $null
+        if (
+          -not [string]::IsNullOrWhiteSpace([string]$_.Text) -and
+          (
+            $_ -is [System.Windows.Forms.Label] -or
+            $_ -is [System.Windows.Forms.Button] -or
+            $_ -is [System.Windows.Forms.CheckBox]
+          )
+        ) {
+          $measured = [System.Windows.Forms.TextRenderer]::MeasureText(
+            [string]$_.Text,
+            $_.Font
+          )
+          $measuredTextWidth = [int]$measured.Width
+          $horizontalPadding = if (
+            $_ -is [System.Windows.Forms.Button] -or
+            $_ -is [System.Windows.Forms.CheckBox]
+          ) {
+            18
+          } else {
+            4
+          }
+          $textFits = (
+            $measuredTextWidth + $horizontalPadding -le [int]$_.Width
+          )
+        }
         [pscustomobject]@{
           type = $_.GetType().Name
           text = [string]$_.Text
@@ -829,6 +978,8 @@ if ($LayoutDiagnostics) {
           top = [int]$_.Top
           right = [int]$_.Right
           bottom = [int]$_.Bottom
+          measuredTextWidth = $measuredTextWidth
+          textFits = $textFits
           insideClient = (
             $_.Left -ge 0 -and
             $_.Top -ge 0 -and
@@ -839,7 +990,13 @@ if ($LayoutDiagnostics) {
       }
   )
   [pscustomobject]@{
-    ok = (@($layoutRows | Where-Object { -not $_.insideClient }).Count -eq 0)
+    ok = (
+      @(
+        $layoutRows |
+          Where-Object { -not $_.insideClient -or -not $_.textFits }
+      ).Count -eq 0
+    )
+    language = $script:uiLanguage
     clientWidth = [int]$form.ClientSize.Width
     clientHeight = [int]$form.ClientSize.Height
     controls = $layoutRows

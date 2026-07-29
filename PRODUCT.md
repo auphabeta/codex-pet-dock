@@ -263,7 +263,7 @@ Dock 与详情面板立即隐藏，不退出后台进程、不弹错误。再次
 
 - Base theme；
 - Language：English / 简体中文；
-- Launch at sign-in，默认关闭、首次引导中明确询问；
+- Launch at sign-in，一键安装默认开启，首次提示中说明可随时关闭；
 - Show local Token activity；
 - Reset position offsets；
 - Open Theme Studio / Reload custom themes；
@@ -281,8 +281,9 @@ Dock 与详情面板立即隐藏，不退出后台进程、不弹错误。再次
 
 ### 与 Codex 一起出现
 
-不修改 Codex 快捷方式，也不向官方进程注册插件。用户在托盘中主动开启
-`Launch at sign-in` 后，Pet Dock 随 Windows 登录进入低频待命：
+不修改 Codex 快捷方式，也不向官方进程注册插件。一键安装默认开启
+`Launch at sign-in`，Pet Dock 随 Windows 登录进入低频待命；用户可在托盘
+随时关闭：
 
 - Codex 宠物未发现或隐藏时每 1 秒轻量发现一次，并暂停额度探测；
 - Codex 和宠物出现：自动附着并开始刷新指标；

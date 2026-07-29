@@ -11,10 +11,61 @@ param(
   [switch]$AllowMultipleInstances,
   [switch]$ThemeSwitchDiagnostics,
   [switch]$PanelLayoutDiagnostics,
+  [ValidateSet('', 'en-US', 'zh-CN')]
+  [string]$Language = '',
   [string]$ConfigDirectoryOverride = ''
 )
 
 $ErrorActionPreference = 'Stop'
+
+$script:uiLanguage = 'en-US'
+$localeDirectory = Join-Path $PSScriptRoot 'locales'
+
+function Import-UiLocale {
+  param([Parameter(Mandatory = $true)][string]$Locale)
+
+  $localePath = Join-Path $localeDirectory ($Locale + '.json')
+  if (-not (Test-Path -LiteralPath $localePath)) {
+    throw 'UI locale file was not found: ' + $localePath
+  }
+  return Get-Content -Raw -Encoding UTF8 -LiteralPath $localePath |
+    ConvertFrom-Json
+}
+
+$script:uiText = @{
+  'en-US' = (Import-UiLocale -Locale 'en-US').app
+  'zh-CN' = (Import-UiLocale -Locale 'zh-CN').app
+}
+
+function Get-UiText {
+  param(
+    [Parameter(Mandatory = $true)][string]$Key,
+    [object[]]$Arguments = @()
+  )
+
+  $languageTable = $script:uiText[$script:uiLanguage]
+  $property = if ($null -ne $languageTable) {
+    $languageTable.PSObject.Properties[$Key]
+  } else {
+    $null
+  }
+  if ($null -eq $property) {
+    $languageTable = $script:uiText['en-US']
+    $property = $languageTable.PSObject.Properties[$Key]
+  }
+  if ($null -eq $property) {
+    throw 'Missing UI text key: ' + $Key
+  }
+  $template = [string]$property.Value
+  if ($Arguments.Count -eq 0) {
+    return $template
+  }
+  return [string]::Format(
+    [Globalization.CultureInfo]::InvariantCulture,
+    $template,
+    [object[]]$Arguments
+  )
+}
 
 $instanceMutex = $null
 $ownsInstanceMutex = $false
@@ -284,6 +335,7 @@ namespace CodexPetQuota
         private string resetTime = "--:--";
         private string planCode = "";
         private string tokenLabel = "--";
+        private string tokenHeader = "WEEK TOKENS";
         private Image baseTexture = null;
         private bool hovered = false;
         private bool showContactShadow = true;
@@ -333,6 +385,12 @@ namespace CodexPetQuota
         {
             get { return tokenLabel; }
             set { tokenLabel = value ?? "--"; Invalidate(); }
+        }
+
+        public string TokenHeader
+        {
+            get { return tokenHeader; }
+            set { tokenHeader = value ?? "WEEK TOKENS"; Invalidate(); }
         }
 
         public Image BaseTexture
@@ -407,7 +465,9 @@ namespace CodexPetQuota
                     int valueHeight = compactMetrics ? 18 : 21;
                     return
                         micro.GetHeight(graphics) <= 12.0f &&
-                        valueFont.GetHeight(graphics) <= valueHeight;
+                        valueFont.GetHeight(graphics) <= valueHeight &&
+                        graphics.MeasureString(windowCode, micro).Width <= 82.0f &&
+                        graphics.MeasureString(tokenHeader, micro).Width <= 82.0f;
                 }
             }
         }
@@ -765,9 +825,7 @@ namespace CodexPetQuota
                     );
                 }
 
-                string leftHeader = state == 2
-                    ? "OFFLINE"
-                    : "WEEK LEFT";
+                string leftHeader = windowCode;
                 RectangleF leftHeaderRect = new RectangleF(
                     30, 32 + contentOffsetY, 82, 12
                 );
@@ -827,14 +885,14 @@ namespace CodexPetQuota
                 RectangleF rightHeaderShadowRect = rightHeaderRect;
                 rightHeaderShadowRect.Offset(0, 1);
                 e.Graphics.DrawString(
-                    "WEEK TOKENS",
+                    tokenHeader,
                     micro,
                     textShadow,
                     rightHeaderShadowRect,
                     centered
                 );
                 e.Graphics.DrawString(
-                    "WEEK TOKENS",
+                    tokenHeader,
                     micro,
                     muted,
                     rightHeaderRect,
@@ -1328,31 +1386,34 @@ function Get-WindowLabel {
 
   $minutes = [double]$Bucket.windowDurationMins
   if ([math]::Abs($minutes - 300) -le 15) {
-    return '5 hour limit'
+    return Get-UiText -Key 'FiveHourLimit'
   }
   if ([math]::Abs($minutes - 1440) -le 72) {
-    return 'Daily limit'
+    return Get-UiText -Key 'DailyLimit'
   }
   if ([math]::Abs($minutes - 10080) -le 504) {
-    return 'Weekly limit'
+    return Get-UiText -Key 'WeeklyLimit'
   }
   if ($minutes -gt 0) {
-    return ('{0:g} hour limit' -f ($minutes / 60))
+    return Get-UiText -Key 'HourLimit' -Arguments @($minutes / 60)
   }
-  return 'Usage limit'
+  return Get-UiText -Key 'UsageLimit'
 }
 
 function Format-ResetTime {
   param($UnixSeconds)
 
   if ($null -eq $UnixSeconds) {
-    return 'reset time unavailable'
+    return Get-UiText -Key 'ResetUnavailable'
   }
   try {
     $time = [DateTimeOffset]::FromUnixTimeSeconds([long]$UnixSeconds).LocalDateTime
-    return 'resets ' + $time.ToString('MMM d HH:mm')
+    $formatted = $time.ToString(
+      (Get-UiText -Key 'ResetDateTimeFormat')
+    )
+    return Get-UiText -Key 'ResetsAt' -Arguments @($formatted)
   } catch {
-    return 'reset time unavailable'
+    return Get-UiText -Key 'ResetUnavailable'
   }
 }
 
@@ -1900,7 +1961,7 @@ function Reload-CustomThemeCatalog {
   Initialize-CustomThemes
 }
 
-function Get-SavedThemeId {
+function Get-SavedPetQuotaConfig {
   $readPath = $configPath
   if (
     -not (Test-Path -LiteralPath $readPath) -and
@@ -1912,21 +1973,55 @@ function Get-SavedThemeId {
     return $null
   }
   try {
-    $savedConfig = Get-Content -Raw -Encoding UTF8 -LiteralPath $readPath |
+    return Get-Content -Raw -Encoding UTF8 -LiteralPath $readPath |
       ConvertFrom-Json
-    return [string]$savedConfig.theme
   } catch {
     return $null
   }
 }
 
+function Get-SavedThemeId {
+  $savedConfig = Get-SavedPetQuotaConfig
+  if ($null -eq $savedConfig) {
+    return $null
+  }
+  return [string]$savedConfig.theme
+}
+
+function Get-SavedLanguage {
+  $savedConfig = Get-SavedPetQuotaConfig
+  $savedLanguage = if ($null -ne $savedConfig) {
+    [string]$savedConfig.language
+  } else {
+    ''
+  }
+  if ($savedLanguage -notin @('en-US', 'zh-CN')) {
+    return 'en-US'
+  }
+  return $savedLanguage
+}
+
 function Save-PetQuotaConfig {
-  param([Parameter(Mandatory = $true)][string]$ThemeId)
+  param(
+    [string]$ThemeId = '',
+    [string]$UiLanguage = ''
+  )
+
+  if ([string]::IsNullOrWhiteSpace($ThemeId)) {
+    $ThemeId = [string]$script:selectedThemeId
+  }
+  if ([string]::IsNullOrWhiteSpace($UiLanguage)) {
+    $UiLanguage = [string]$script:uiLanguage
+  }
+  if ($UiLanguage -notin @('en-US', 'zh-CN')) {
+    throw 'Unsupported UI language: ' + $UiLanguage
+  }
 
   [void][System.IO.Directory]::CreateDirectory($configDirectory)
   $configJson = [ordered]@{
-    version = 1
+    version = 2
     theme = $ThemeId
+    language = $UiLanguage
   } |
     ConvertTo-Json
   $temporaryConfigPath = $configPath + '.tmp'
@@ -2013,7 +2108,9 @@ function Set-LaunchAtSignIn {
   param([Parameter(Mandatory = $true)][bool]$Enabled)
 
   if ($Enabled) {
-    [void](New-Item -Path $startupRegistryPath -Force)
+    if (-not (Test-Path -LiteralPath $startupRegistryPath)) {
+      [void](New-Item -Path $startupRegistryPath)
+    }
     $powershellExecutable = Join-Path $PSHOME 'powershell.exe'
     $startupCommand = (
       '"' +
@@ -2037,6 +2134,13 @@ function Set-LaunchAtSignIn {
 }
 
 Initialize-CustomThemes
+
+$requestedLanguage = $Language.Trim()
+$script:uiLanguage = if ([string]::IsNullOrWhiteSpace($requestedLanguage)) {
+  Get-SavedLanguage
+} else {
+  $requestedLanguage
+}
 
 $script:selectedThemeId = $Theme.Trim().ToLowerInvariant()
 if ([string]::IsNullOrWhiteSpace($script:selectedThemeId)) {
@@ -2071,6 +2175,7 @@ if ($Diagnostics) {
     ok = $true
     codexExecutable = $codexExecutable
     selectedTheme = $script:selectedThemeId
+    language = $script:uiLanguage
     availableThemes = @($script:themeCatalog.Keys)
     petWindow = $petWindow
     petMascotBounds = $petMascotBounds
@@ -2304,7 +2409,7 @@ if ($null -ne $appIcon) {
 Set-RoundedRegion -Control $panel -Radius 16
 
 $panelTitle = New-Object System.Windows.Forms.Label
-$panelTitle.Text = 'CAPACITY TELEMETRY'
+$panelTitle.Text = Get-UiText -Key 'PanelTitle'
 $panelTitle.Location = New-Object System.Drawing.Point 16, 14
 $panelTitle.Size = New-Object System.Drawing.Size 328, 24
 $panelTitle.Font = [System.Drawing.Font]::new(
@@ -2317,7 +2422,7 @@ $panelTitle.ForeColor = [System.Drawing.Color]::FromArgb(244, 246, 255)
 $panel.Controls.Add($panelTitle)
 
 $panelStatus = New-Object System.Windows.Forms.Label
-$panelStatus.Text = 'Loading...'
+$panelStatus.Text = Get-UiText -Key 'Loading'
 $panelStatus.Location = New-Object System.Drawing.Point 16, 44
 $panelStatus.Size = New-Object System.Drawing.Size 328, 50
 $panelStatus.Font = [System.Drawing.Font]::new(
@@ -2357,7 +2462,7 @@ function Get-QuotaFreshness {
     return [pscustomobject]@{
       IsStale = $true
       AgeSeconds = $null
-      Label = 'NO DATA'
+      Label = Get-UiText -Key 'NoData'
       CapturedAt = $null
     }
   }
@@ -2373,11 +2478,15 @@ function Get-QuotaFreshness {
     )
     $staleAfterSeconds = [math]::Max(600, $RefreshSeconds * 2)
     $ageLabel = if ($ageSeconds -lt 60) {
-      [string]$ageSeconds + 's ago'
+      Get-UiText -Key 'SecondsAgo' -Arguments @($ageSeconds)
     } elseif ($ageSeconds -lt 3600) {
-      [string][math]::Floor($ageSeconds / 60) + 'm ago'
+      Get-UiText `
+        -Key 'MinutesAgo' `
+        -Arguments @([math]::Floor($ageSeconds / 60))
     } else {
-      [string][math]::Floor($ageSeconds / 3600) + 'h ago'
+      Get-UiText `
+        -Key 'HoursAgo' `
+        -Arguments @([math]::Floor($ageSeconds / 3600))
     }
     return [pscustomobject]@{
       IsStale = ($ageSeconds -ge $staleAfterSeconds)
@@ -2389,7 +2498,7 @@ function Get-QuotaFreshness {
     return [pscustomobject]@{
       IsStale = $true
       AgeSeconds = $null
-      Label = 'INVALID TIME'
+      Label = Get-UiText -Key 'InvalidTime'
       CapturedAt = $null
     }
   }
@@ -2427,12 +2536,13 @@ function Update-QuotaUi {
     $bar.Dispose()
   }
   $quotaBars.Clear()
+  $baseControl.TokenHeader = Get-UiText -Key 'WeekTokens'
 
   if ($null -ne $latestError) {
     $baseControl.State = 2
-    $baseControl.WindowCode = 'OFFLINE'
-    $baseControl.ResetDate = 'RETRY'
-    $baseControl.ResetTime = 'click base'
+    $baseControl.WindowCode = Get-UiText -Key 'Offline'
+    $baseControl.ResetDate = Get-UiText -Key 'Retry'
+    $baseControl.ResetTime = Get-UiText -Key 'ClickBase'
     $baseControl.TokenLabel = '--'
     $panelStatus.Text = $latestError
     $panelStatus.Visible = $true
@@ -2443,11 +2553,11 @@ function Update-QuotaUi {
 
   if ($null -eq $latestQuota) {
     $baseControl.State = 0
-    $baseControl.WindowCode = 'LIMIT'
+    $baseControl.WindowCode = Get-UiText -Key 'Limit'
     $baseControl.ResetDate = '--'
     $baseControl.ResetTime = '--:--'
     $baseControl.TokenLabel = '--'
-    $panelStatus.Text = 'Loading...'
+    $panelStatus.Text = Get-UiText -Key 'Loading'
     $panelStatus.Visible = $true
     return
   }
@@ -2473,23 +2583,25 @@ function Update-QuotaUi {
   if ($null -ne $baseBucket) {
     $windowMinutes = [double]$baseBucket.windowDurationMins
     if ([math]::Abs($windowMinutes - 300) -le 15) {
-      $baseControl.WindowCode = '5H LEFT'
+      $baseControl.WindowCode = Get-UiText -Key 'FiveHourLeft'
     } elseif ([math]::Abs($windowMinutes - 1440) -le 72) {
-      $baseControl.WindowCode = 'DAY LEFT'
+      $baseControl.WindowCode = Get-UiText -Key 'DayLeft'
     } elseif ([math]::Abs($windowMinutes - 10080) -le 504) {
-      $baseControl.WindowCode = 'WEEK LEFT'
+      $baseControl.WindowCode = Get-UiText -Key 'WeekLeft'
     } else {
-      $baseControl.WindowCode = 'LIMIT LEFT'
+      $baseControl.WindowCode = Get-UiText -Key 'LimitLeft'
     }
 
     try {
       $baseReset = [DateTimeOffset]::FromUnixTimeSeconds(
         [long]$baseBucket.resetsAt
       ).LocalDateTime
-      $baseControl.ResetDate = $baseReset.ToString('MMM d').ToUpperInvariant()
+      $baseControl.ResetDate = $baseReset.ToString(
+        (Get-UiText -Key 'ResetDateFormat')
+      ).ToUpperInvariant()
       $baseControl.ResetTime = $baseReset.ToString('HH:mm')
     } catch {
-      $baseControl.ResetDate = 'UNKNOWN'
+      $baseControl.ResetDate = Get-UiText -Key 'Unknown'
       $baseControl.ResetTime = '--:--'
     }
   }
@@ -2499,7 +2611,7 @@ function Update-QuotaUi {
   $freshness = Get-QuotaFreshness
   if ($freshness.IsStale) {
     $baseControl.State = 0
-    $baseControl.WindowCode = 'STALE DATA'
+    $baseControl.WindowCode = Get-UiText -Key 'StaleData'
   }
 
   $panelStatus.Visible = $false
@@ -2511,18 +2623,19 @@ function Update-QuotaUi {
     $bar.Width = 328
     $bar.Caption = Get-WindowLabel -Bucket $bucket
     $bar.Value = [int][math]::Round([double]$bucket.remainingPercent)
-    $bar.Detail = (
-      ([string]$bar.Value) +
-      '% left - ' +
-      (Format-ResetTime -UnixSeconds $bucket.resetsAt)
-    )
+    $bar.Detail = Get-UiText `
+      -Key 'PercentLeft' `
+      -Arguments @(
+        [string]$bar.Value,
+        (Format-ResetTime -UnixSeconds $bucket.resetsAt)
+      )
     $panel.Controls.Add($bar)
     $quotaBars.Add($bar)
     $top += 66
   }
 
   if ($buckets.Count -eq 0) {
-    $panelStatus.Text = 'No active rate-limit window was returned.'
+    $panelStatus.Text = Get-UiText -Key 'NoActiveWindow'
     $panelStatus.Visible = $true
     $top = 96
   }
@@ -2543,10 +2656,11 @@ function Update-QuotaUi {
       218,
       240
     )
-    $tokenHeaderLabel.Text = (
-      'LOCAL WEEK TOKENS  ' +
-      ([long]$latestQuota.tokenStats.weeklyTokens).ToString('N0')
-    )
+    $tokenHeaderLabel.Text = Get-UiText `
+      -Key 'LocalWeekTokens' `
+      -Arguments @(
+        ([long]$latestQuota.tokenStats.weeklyTokens).ToString('N0')
+      )
     $tokenHeaderHeight = Set-MeasuredLabelHeight `
       -Label $tokenHeaderLabel `
       -MinimumHeight 18 `
@@ -2570,17 +2684,15 @@ function Update-QuotaUi {
       181,
       207
     )
-    $tokenDetailLabel.Text = (
-      'cached ' +
-      ([double]$latestQuota.tokenStats.cachedPercent).ToString('0.0') +
-      '% | fresh ' +
-      (Format-TokenCount -TokenCount $latestQuota.tokenStats.freshInputTokens) +
-      ' | output ' +
-      (Format-TokenCount -TokenCount $latestQuota.tokenStats.outputTokens) +
-      [Environment]::NewLine +
-      [string]$latestQuota.tokenStats.scannedSessions +
-      ' sessions | local estimate, not billing data'
-    )
+    $tokenDetailLabel.Text = Get-UiText `
+      -Key 'TokenDetails' `
+      -Arguments @(
+        ([double]$latestQuota.tokenStats.cachedPercent).ToString('0.0'),
+        (Format-TokenCount -TokenCount $latestQuota.tokenStats.freshInputTokens),
+        (Format-TokenCount -TokenCount $latestQuota.tokenStats.outputTokens),
+        [Environment]::NewLine,
+        [string]$latestQuota.tokenStats.scannedSessions
+      )
     $tokenDetailHeight = Set-MeasuredLabelHeight `
       -Label $tokenDetailLabel `
       -MinimumHeight 30 `
@@ -2602,10 +2714,9 @@ function Update-QuotaUi {
       [System.Drawing.GraphicsUnit]::Pixel
     )
     $resetLabel.ForeColor = [System.Drawing.Color]::FromArgb(166, 174, 197)
-    $resetLabel.Text = (
-      'Available usage resets: ' +
-      [string]$latestQuota.resetCreditsAvailable
-    )
+    $resetLabel.Text = Get-UiText `
+      -Key 'AvailableResets' `
+      -Arguments @([string]$latestQuota.resetCreditsAvailable)
     $resetLabelHeight = Set-MeasuredLabelHeight `
       -Label $resetLabel `
       -MinimumHeight 18 `
@@ -2631,9 +2742,9 @@ function Update-QuotaUi {
     [System.Drawing.Color]::FromArgb(111, 232, 188)
   }
   $freshnessLabel.Text = if ($freshness.IsStale) {
-    'STALE DATA - updated ' + [string]$freshness.Label
+    Get-UiText -Key 'StaleUpdated' -Arguments @([string]$freshness.Label)
   } else {
-    'LIVE - updated ' + [string]$freshness.Label
+    Get-UiText -Key 'LiveUpdated' -Arguments @([string]$freshness.Label)
   }
   $freshnessHeight = Set-MeasuredLabelHeight `
     -Label $freshnessLabel `
@@ -2652,13 +2763,13 @@ function Update-QuotaUi {
     )
   }
   $panelTitle.Text = (
-    'CAPACITY TELEMETRY' +
+    (Get-UiText -Key 'PanelTitle') +
     $planLabel +
     ' - ' +
     $(if ($null -ne $capturedAt) {
       $capturedAt.ToString('HH:mm:ss')
     } else {
-      'UNKNOWN'
+      Get-UiText -Key 'Unknown'
     })
   )
   $panel.Height = [math]::Max(118, $top + 18)
@@ -2747,11 +2858,16 @@ if ($PanelLayoutDiagnostics) {
         $layoutControls |
           Where-Object { -not $_.textFits -or -not $_.insidePanel }
       ).Count -eq 0 -and
-      $overlapCount -eq 0
+      $overlapCount -eq 0 -and
+      $baseControl.MetricsFontFits
     )
+    language = $script:uiLanguage
     panelWidth = [int]$panel.ClientSize.Width
     panelHeight = [int]$panel.ClientSize.Height
     overlapCount = $overlapCount
+    baseLeftHeader = [string]$baseControl.WindowCode
+    baseRightHeader = [string]$baseControl.TokenHeader
+    baseMetricsFontFits = [bool]$baseControl.MetricsFontFits
     controls = $layoutControls
   } | ConvertTo-Json -Depth 5
   $petBase.Dispose()
@@ -2822,19 +2938,19 @@ $baseControl.Add_Click({ Toggle-QuotaPanel })
 
 $trayMenu = New-Object System.Windows.Forms.ContextMenuStrip
 $statusMenuItem = New-Object System.Windows.Forms.ToolStripMenuItem
-$statusMenuItem.Text = '[STARTING] Looking for Codex pet'
+$statusMenuItem.Text = Get-UiText -Key 'StartingStatus'
 $statusMenuItem.Enabled = $false
 [void]$trayMenu.Items.Add($statusMenuItem)
 [void]$trayMenu.Items.Add(
   (New-Object System.Windows.Forms.ToolStripSeparator)
 )
-$refreshMenuItem = $trayMenu.Items.Add('Refresh')
+$refreshMenuItem = $trayMenu.Items.Add((Get-UiText -Key 'Refresh'))
 $themeMenuItem = New-Object System.Windows.Forms.ToolStripMenuItem
-$themeMenuItem.Text = 'Base theme'
+$themeMenuItem.Text = Get-UiText -Key 'BaseTheme'
 [void]$trayMenu.Items.Add($themeMenuItem)
 
 $openCustomThemesItem = New-Object System.Windows.Forms.ToolStripMenuItem
-$openCustomThemesItem.Text = 'Open custom themes folder'
+$openCustomThemesItem.Text = Get-UiText -Key 'OpenThemesFolder'
 $openCustomThemesItem.Add_Click({
   try {
     [void][System.IO.Directory]::CreateDirectory($customThemesDirectory)
@@ -2849,7 +2965,7 @@ $openCustomThemesItem.Add_Click({
 })
 
 $createCustomThemeItem = New-Object System.Windows.Forms.ToolStripMenuItem
-$createCustomThemeItem.Text = 'Create or edit custom base...'
+$createCustomThemeItem.Text = Get-UiText -Key 'CreateTheme'
 $createCustomThemeItem.Add_Click({
   try {
     $studioScript = Join-Path $PSScriptRoot 'Start-CodexPetThemeStudio.ps1'
@@ -2863,7 +2979,9 @@ $createCustomThemeItem.Add_Click({
       '-ExecutionPolicy',
       'RemoteSigned',
       '-File',
-      $studioScript
+      $studioScript,
+      '-Language',
+      $script:uiLanguage
     )
     if (-not [string]::IsNullOrWhiteSpace($ConfigDirectoryOverride)) {
       $studioArguments += @(
@@ -2888,7 +3006,7 @@ $createCustomThemeItem.Add_Click({
 })
 
 $reloadCustomThemesItem = New-Object System.Windows.Forms.ToolStripMenuItem
-$reloadCustomThemesItem.Text = 'Reload custom themes'
+$reloadCustomThemesItem.Text = Get-UiText -Key 'ReloadThemes'
 
 function Rebuild-ThemeMenu {
   $themeMenuItem.DropDownItems.Clear()
@@ -2900,7 +3018,9 @@ function Rebuild-ThemeMenu {
       $null -ne $definition.IsCustom -and
       [bool]$definition.IsCustom
     ) {
-      'Custom - ' + [string]$definition.Name
+      Get-UiText `
+        -Key 'CustomThemePrefix' `
+        -Arguments @([string]$definition.Name)
     } else {
       [string]$definition.Name
     }
@@ -2949,8 +3069,9 @@ $reloadCustomThemesItem.Add_Click({
       2500,
       'Codex Pet Dock',
       (
-        [string]$customThemeCount +
-        ' custom base theme(s) loaded.'
+        Get-UiText `
+          -Key 'CustomThemesLoaded' `
+          -Arguments @([string]$customThemeCount)
       ),
       [System.Windows.Forms.ToolTipIcon]::Info
     )
@@ -2962,8 +3083,54 @@ $reloadCustomThemesItem.Add_Click({
 })
 Rebuild-ThemeMenu
 
+$languageMenuItem = New-Object System.Windows.Forms.ToolStripMenuItem
+$languageMenuItem.Text = Get-UiText -Key 'Language'
+$englishLanguageItem = New-Object System.Windows.Forms.ToolStripMenuItem
+$englishLanguageItem.Text = Get-UiText -Key 'English'
+$englishLanguageItem.Tag = 'en-US'
+$chineseLanguageItem = New-Object System.Windows.Forms.ToolStripMenuItem
+$chineseLanguageItem.Text = Get-UiText -Key 'SimplifiedChinese'
+$chineseLanguageItem.Tag = 'zh-CN'
+$englishLanguageItem.Checked = ($script:uiLanguage -eq 'en-US')
+$chineseLanguageItem.Checked = ($script:uiLanguage -eq 'zh-CN')
+[void]$languageMenuItem.DropDownItems.Add($englishLanguageItem)
+[void]$languageMenuItem.DropDownItems.Add($chineseLanguageItem)
+
+function Apply-UiLanguage {
+  $refreshMenuItem.Text = Get-UiText -Key 'Refresh'
+  $themeMenuItem.Text = Get-UiText -Key 'BaseTheme'
+  $openCustomThemesItem.Text = Get-UiText -Key 'OpenThemesFolder'
+  $createCustomThemeItem.Text = Get-UiText -Key 'CreateTheme'
+  $reloadCustomThemesItem.Text = Get-UiText -Key 'ReloadThemes'
+  $languageMenuItem.Text = Get-UiText -Key 'Language'
+  $englishLanguageItem.Text = Get-UiText -Key 'English'
+  $chineseLanguageItem.Text = Get-UiText -Key 'SimplifiedChinese'
+  $launchAtSignInMenuItem.Text = Get-UiText -Key 'LaunchAtSignIn'
+  $exitMenuItem.Text = Get-UiText -Key 'Exit'
+  $englishLanguageItem.Checked = ($script:uiLanguage -eq 'en-US')
+  $chineseLanguageItem.Checked = ($script:uiLanguage -eq 'zh-CN')
+  Rebuild-ThemeMenu
+  Update-QuotaUi
+  $script:lastTrayStatusKey = ''
+  Update-TrayStatus
+}
+
+$languageClickHandler = {
+  param($sender, $eventArgs)
+  $requestedUiLanguage = [string]$sender.Tag
+  if ($requestedUiLanguage -notin @('en-US', 'zh-CN')) {
+    return
+  }
+  $script:uiLanguage = $requestedUiLanguage
+  Save-PetQuotaConfig
+  Apply-UiLanguage
+}
+$englishLanguageItem.Add_Click($languageClickHandler)
+$chineseLanguageItem.Add_Click($languageClickHandler)
+[void]$trayMenu.Items.Add($languageMenuItem)
+
 $launchAtSignInMenuItem = New-Object System.Windows.Forms.ToolStripMenuItem
-$launchAtSignInMenuItem.Text = 'Launch at sign-in'
+$launchAtSignInMenuItem.Text = Get-UiText -Key 'LaunchAtSignIn'
 $launchAtSignInMenuItem.Checked = Get-LaunchAtSignInEnabled
 $launchAtSignInMenuItem.Add_Click({
   param($sender, $eventArgs)
@@ -2982,7 +3149,7 @@ $launchAtSignInMenuItem.Add_Click({
 [void]$trayMenu.Items.Add(
   (New-Object System.Windows.Forms.ToolStripSeparator)
 )
-$exitMenuItem = $trayMenu.Items.Add('Exit')
+$exitMenuItem = $trayMenu.Items.Add((Get-UiText -Key 'Exit'))
 $refreshMenuItem.Add_Click({ Begin-QuotaRefresh })
 $exitMenuItem.Add_Click({
   $script:isExiting = $true
@@ -3079,30 +3246,32 @@ function Update-TrayStatus {
     -not $script:currentPetWindow.Visible
   ) {
     $statusKey = 'waiting'
-    $statusText = '[WAITING] Open Codex pet to attach'
-    $toolTipText = 'Codex Pet Dock - waiting for pet'
+    $statusText = Get-UiText -Key 'WaitingStatus'
+    $toolTipText = Get-UiText -Key 'WaitingTooltip'
   } elseif ($null -ne $script:latestError) {
     $statusKey = 'quota-error'
-    $statusText = '[CONNECTED] Quota temporarily unavailable'
-    $toolTipText = 'Codex Pet Dock - quota unavailable'
+    $statusText = Get-UiText -Key 'QuotaUnavailableStatus'
+    $toolTipText = Get-UiText -Key 'QuotaUnavailableTooltip'
   } elseif ($null -eq $script:latestQuota) {
     $statusKey = 'loading'
-    $statusText = '[CONNECTED] Loading quota'
-    $toolTipText = 'Codex Pet Dock - loading quota'
+    $statusText = Get-UiText -Key 'LoadingStatus'
+    $toolTipText = Get-UiText -Key 'LoadingTooltip'
   } else {
     $freshness = Get-QuotaFreshness
     if ($freshness.IsStale) {
       $statusKey = 'stale-' + [string][math]::Floor(
         [double]$freshness.AgeSeconds / 300
       )
-      $statusText = '[CONNECTED] Quota data is stale'
-      $toolTipText = 'Codex Pet Dock - stale quota data'
+      $statusText = Get-UiText -Key 'StaleStatus'
+      $toolTipText = Get-UiText -Key 'StaleTooltip'
     } else {
       $statusKey = 'live-' + [string][math]::Floor(
         [double]$freshness.AgeSeconds / 60
       )
-      $statusText = '[CONNECTED] Quota updated ' + [string]$freshness.Label
-      $toolTipText = 'Codex Pet Dock - connected'
+      $statusText = Get-UiText `
+        -Key 'UpdatedStatus' `
+        -Arguments @([string]$freshness.Label)
+      $toolTipText = Get-UiText -Key 'ConnectedTooltip'
     }
   }
   if ($statusKey -eq $script:lastTrayStatusKey) {
@@ -3124,11 +3293,8 @@ if (-not (Test-Path -LiteralPath $welcomeMarkerPath)) {
     )
     $trayIcon.ShowBalloonTip(
       5000,
-      'Codex Pet Dock is running',
-      (
-        'It stays in the tray and reconnects when the Codex pet appears. ' +
-        'Right-click the icon for startup and custom bases.'
-      ),
+      (Get-UiText -Key 'WelcomeTitle'),
+      (Get-UiText -Key 'WelcomeBody'),
       [System.Windows.Forms.ToolTipIcon]::Info
     )
   } catch {
@@ -3152,7 +3318,7 @@ $timer.Add_Tick({
     Update-TrayStatus
     $trayIcon.ShowBalloonTip(
       3000,
-      'Codex Pet Dock is already running',
+      (Get-UiText -Key 'AlreadyRunning'),
       $statusMenuItem.Text,
       [System.Windows.Forms.ToolTipIcon]::Info
     )
@@ -3165,8 +3331,12 @@ $timer.Add_Tick({
       $customThemeCount = Invoke-CustomThemeReload
       $trayIcon.ShowBalloonTip(
         2500,
-        'Custom bases reloaded',
-        [string]$customThemeCount + ' custom base theme(s) available.',
+        (Get-UiText -Key 'CustomBasesReloaded'),
+        (
+          Get-UiText `
+            -Key 'CustomBasesAvailable' `
+            -Arguments @([string]$customThemeCount)
+        ),
         [System.Windows.Forms.ToolTipIcon]::Info
       )
     } catch {
