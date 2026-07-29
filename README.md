@@ -2,9 +2,11 @@
 
 > 不再层层点击账户页面——让 Codex 剩余额度和本周 Token 使用量直接显示在宠物脚下。
 
-## 33 秒看懂 Codex Pet Dock
+## 30 秒看懂 Codex Pet Dock
 
-https://github.com/user-attachments/assets/5a6e2cb5-298c-444a-9b9c-7adc35ea8ce7
+<p align="center">
+  <img src="docs/video/yanshi-readme.gif" alt="Codex Pet Dock 演示：查看额度、切换宠物和更换底座" width="720">
+</p>
 
 ## 为什么做这个工具
 

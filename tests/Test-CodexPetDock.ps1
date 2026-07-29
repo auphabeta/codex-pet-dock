@@ -750,6 +750,7 @@ $readmeSource = Get-Content `
   -LiteralPath $readmePath
 $demoVideoPath = Join-Path $projectRoot 'docs\video\yanshi.mp4'
 $demoPosterPath = Join-Path $projectRoot 'docs\video\yanshi-cover.jpg'
+$demoGifPath = Join-Path $projectRoot 'docs\video\yanshi-readme.gif'
 $previewBuildPath = Join-Path $projectRoot 'packaging\Build-Preview.ps1'
 $previewBuildSource = Get-Content `
   -Raw `
@@ -757,16 +758,14 @@ $previewBuildSource = Get-Content `
   -LiteralPath $previewBuildPath
 Add-TestResult `
   -Area 'Packaging' `
-  -Name 'README embeds the demo while release package excludes the MP4' `
+  -Name 'README autoplays an optimized GIF excluded from the release package' `
   -Passed (
     (Test-Path -LiteralPath $demoVideoPath) -and
     (Test-Path -LiteralPath $demoPosterPath) -and
-    $readmeSource -match (
-      'https://github\.com/user-attachments/assets/' +
-      '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-' +
-      '[0-9a-f]{4}-[0-9a-f]{12}'
-    ) -and
-    $previewBuildSource -match "docs\\video\\yanshi\.mp4"
+    (Test-Path -LiteralPath $demoGifPath) -and
+    (Get-Item -LiteralPath $demoGifPath).Length -lt 15MB -and
+    $readmeSource -match 'docs/video/yanshi-readme\.gif' -and
+    $previewBuildSource -match "'yanshi\.mp4', 'yanshi-readme\.gif'"
   )
 try {
   $installerValidation = & powershell.exe `
