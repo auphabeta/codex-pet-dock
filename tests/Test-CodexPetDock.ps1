@@ -355,9 +355,9 @@ Add-TestResult `
   )
 Add-TestResult `
   -Area 'Power policy' `
-  -Name 'Default quota refresh is fifteen minutes' `
+  -Name 'Default quota refresh is five minutes' `
   -Passed (
-    $sidecarSource -match '\[int\]\$RefreshSeconds\s*=\s*900' -and
+    $sidecarSource -match '\[int\]\$RefreshSeconds\s*=\s*300' -and
     $sidecarSource -match '\$quotaFreshness\.AgeSeconds\s+-ge\s+300'
   )
 Add-TestResult `
@@ -365,10 +365,11 @@ Add-TestResult `
   -Name 'Quota failures use bounded exponential backoff' `
   -Passed (
     $sidecarSource -match '\$probeFailureCount' -and
+    $sidecarSource -match '\$probeFailureBaseSeconds\s*=\s*900' -and
     $sidecarSource -match '\$nextAutomaticProbeAt' -and
     $sidecarSource -match (
       '(?s)\$retrySeconds\s*=\s*\[math\]::Min\(.+?' +
-      '3600.+?\[math\]::Pow'
+      '3600.+?\$probeFailureBaseSeconds.+?\[math\]::Pow'
     )
   )
 Add-TestResult `

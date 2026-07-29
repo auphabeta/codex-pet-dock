@@ -65,7 +65,7 @@ The runtime has separate activity levels:
 | Visible and still | 64 ms observation timer; unchanged window moves skipped; z-order maintained once per second |
 | Moving or settling | Temporary 16 ms timer with damped coordinate convergence |
 | Pet identity/window replaced | Fast reacquisition for up to 1.5 seconds; old anchor discarded |
-| Quota refresh | Every 15 minutes by default, on a stale detail-card open, or on explicit refresh; no continuous probe process |
+| Quota refresh | Every 5 minutes by default, on a stale detail-card open, or on explicit refresh; no continuous probe process |
 
 Continuous motion extends the fast interval by only 400 ms at a time. Once
 the pet stops and the base reaches its target, the runtime returns to the
@@ -126,11 +126,12 @@ The new numeric cache was 10,262 bytes in this sample. It stores SHA-256 file
 identifiers, sizes, modification times, and Token aggregates only; it does not
 store original session paths, messages, account data, or credentials.
 
-Scheduled refreshes now run every 15 minutes instead of every five minutes,
-reducing the normal maximum from 12 to four probes per hour while a pet remains
-visible. Opening the detail card refreshes data only when it is at least five
-minutes old. Failures back off from 15 to 30 and then 60 minutes instead of
-repeatedly starting processes while Codex or the network is unavailable.
+Scheduled refreshes run every five minutes, with a maximum of 12 probes per hour
+while a pet remains visible. The native probe and incremental numeric cache keep
+each run bounded. Opening the detail card refreshes data only when it is at least
+five minutes old. Failure timing is independent from the normal refresh:
+retries back off to 15, 30, and then 60 minutes instead of repeatedly starting
+processes while Codex or the network is unavailable.
 
 ## Reproduce the measurement
 

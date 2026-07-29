@@ -5,7 +5,7 @@ param(
   [int]$BaseOffsetY = 0,
   [string]$Theme = '',
   [ValidateRange(15, 3600)]
-  [int]$RefreshSeconds = 900,
+  [int]$RefreshSeconds = 300,
   [ValidateRange(0, 86400)]
   [int]$RunSeconds = 0,
   [switch]$AllowMultipleInstances,
@@ -2575,6 +2575,7 @@ $probeProcess = $null
 $lastProbeStartedAt = [DateTime]::MinValue
 $nextAutomaticProbeAt = [DateTime]::MinValue
 $probeFailureCount = 0
+$probeFailureBaseSeconds = 900
 $startedAt = [DateTime]::Now
 $currentPetWindow = $null
 $lastPetVisibleAt = [DateTime]::MinValue
@@ -3756,7 +3757,7 @@ $timer.Add_Tick({
       )
       $retrySeconds = [math]::Min(
         3600,
-        $RefreshSeconds * [math]::Pow(
+        $probeFailureBaseSeconds * [math]::Pow(
           2,
           [int]$script:probeFailureCount - 1
         )
