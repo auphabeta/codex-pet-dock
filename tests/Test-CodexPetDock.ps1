@@ -338,6 +338,17 @@ Add-TestResult `
     $sidecarSource -match '0\.35'
   )
 Add-TestResult `
+  -Area 'Power policy' `
+  -Name 'Dock movement is smoothed only while active and idles cheaply' `
+  -Passed (
+    $sidecarSource -match 'function Get-SmoothedDockCoordinate' -and
+    $sidecarSource -match '\[double\]\$delta \* 0\.68' -and
+    $sidecarSource -match '\$script:baseIsSettling' -and
+    $sidecarSource -match '\$basePositionChanged -or \$zOrderMaintenanceDue' -and
+    $sidecarSource -match 'TotalMilliseconds -ge 1000' -and
+    $sidecarSource -match 'Extend-FastTracking -Milliseconds 400'
+  )
+Add-TestResult `
   -Area 'Reliability' `
   -Name 'Single-instance guard is enabled by default' `
   -Passed (

@@ -1229,6 +1229,41 @@ function Reset-PetMascotTracking {
   }
 }
 
+function Extend-FastTracking {
+  param(
+    [ValidateRange(16, 5000)]
+    [int]$Milliseconds
+  )
+
+  $candidate = [DateTime]::Now.AddMilliseconds($Milliseconds)
+  if ($candidate -gt $script:fastTrackingUntil) {
+    $script:fastTrackingUntil = $candidate
+  }
+}
+
+function Get-SmoothedDockCoordinate {
+  param(
+    [int]$Current,
+    [int]$Target,
+    [ValidateRange(8, 1000)]
+    [int]$SnapDistance = 160
+  )
+
+  $delta = $Target - $Current
+  $distance = [math]::Abs($delta)
+  if ($distance -le 1 -or $distance -ge $SnapDistance) {
+    return $Target
+  }
+
+  # A strong critically-damped step removes single-frame jitter without
+  # leaving the dock visibly trailing behind a dragged pet.
+  $step = [int][math]::Round([double]$delta * 0.68)
+  if ($step -eq 0) {
+    $step = [math]::Sign($delta)
+  }
+  return $Current + $step
+}
+
 function Get-PetMascotBounds {
   param($PetWindow)
 
@@ -1275,7 +1310,7 @@ function Get-PetMascotBounds {
     ) {
       $script:mascotAutomationElement = $null
       $script:mascotAutomationLookupAt = [DateTime]::MinValue
-      $script:fastTrackingUntil = $now.AddMilliseconds(1500)
+      Extend-FastTracking -Milliseconds 1500
     }
 
     $mascotLookupExpired = (
@@ -1357,7 +1392,7 @@ function Get-PetMascotBounds {
           $script:lastMascotBounds = $null
           $script:lastMascotSeenAt = [DateTime]::MinValue
           $script:lastMascotSignature = ''
-          $script:fastTrackingUntil = $now.AddMilliseconds(1500)
+          Extend-FastTracking -Milliseconds 1500
         }
         $script:mascotAutomationIdentity = $selectedIdentity
       }
@@ -1421,7 +1456,7 @@ function Get-PetMascotBounds {
     $script:mascotAutomationRoot = $null
     $script:mascotAutomationHandle = 0
     $script:mascotAutomationLookupAt = [DateTime]::MinValue
-    $script:fastTrackingUntil = [DateTime]::Now.AddMilliseconds(1500)
+    Extend-FastTracking -Milliseconds 1500
     return $null
   }
 }
@@ -2548,6 +2583,9 @@ $lastMascotBounds = $null
 $lastMascotSeenAt = [DateTime]::MinValue
 $lastMascotSignature = ''
 $fastTrackingUntil = [DateTime]::MinValue
+$baseIsSettling = $false
+$lastBaseTargetSignature = ''
+$lastBaseZOrderAt = [DateTime]::MinValue
 $isExiting = $false
 $lastTrayStatusKey = ''
 
@@ -3501,7 +3539,9 @@ $timer.Add_Tick({
   }
   if ($nextPetHandle -ne $previousPetHandle) {
     Reset-PetMascotTracking -ClearLastBounds
-    $script:fastTrackingUntil = [DateTime]::Now.AddMilliseconds(1500)
+    $script:lastBaseTargetSignature = ''
+    $script:baseIsSettling = $false
+    Extend-FastTracking -Milliseconds 1500
   }
   $script:currentPetWindow = $trackedPetWindow
 
@@ -3530,6 +3570,8 @@ $timer.Add_Tick({
   ) {
     $petBase.Hide()
     $panel.Hide()
+    $script:baseIsSettling = $false
+    $script:lastBaseTargetSignature = ''
     Stop-QuotaRefresh
   } else {
     $mascotBounds = Get-PetMascotBounds `
@@ -3552,7 +3594,9 @@ $timer.Add_Tick({
       )
       if ($mascotSignature -ne $script:lastMascotSignature) {
         $script:lastMascotSignature = $mascotSignature
-        $script:fastTrackingUntil = [DateTime]::Now.AddMilliseconds(1500)
+        # Continuous movement keeps extending this short burst. Once the pet
+        # stops, high-frequency tracking falls back in well under a second.
+        Extend-FastTracking -Milliseconds 400
       }
     } elseif (
       $null -ne $script:lastMascotBounds -and
@@ -3597,6 +3641,8 @@ $timer.Add_Tick({
       $petBase.Hide()
       $panel.Hide()
       $script:currentPetWindow = $null
+      $script:baseIsSettling = $false
+      $script:lastBaseTargetSignature = ''
       Reset-PetMascotTracking -ClearLastBounds
     } else {
       $baseLeft = [math]::Max(
@@ -3607,19 +3653,53 @@ $timer.Add_Tick({
         $baseWorkingArea.Top,
         [math]::Min($baseTop, $baseWorkingArea.Bottom - $petBase.Height)
       )
+      $targetSignature = (
+        [string][Int64]$script:currentPetWindow.Handle + ',' +
+        [string]$baseLeft + ',' +
+        [string]$baseTop
+      )
+      if ($targetSignature -ne $script:lastBaseTargetSignature) {
+        $script:lastBaseTargetSignature = $targetSignature
+        Extend-FastTracking -Milliseconds 400
+      }
+
+      $nextBaseLeft = $baseLeft
+      $nextBaseTop = $baseTop
       if (-not $petBase.Visible) {
         $petBase.Location = New-Object System.Drawing.Point $baseLeft, $baseTop
         $petBase.Show()
+        $script:baseIsSettling = $false
+      } else {
+        $nextBaseLeft = Get-SmoothedDockCoordinate `
+          -Current $petBase.Left `
+          -Target $baseLeft
+        $nextBaseTop = Get-SmoothedDockCoordinate `
+          -Current $petBase.Top `
+          -Target $baseTop
+        $script:baseIsSettling = (
+          $nextBaseLeft -ne $baseLeft -or
+          $nextBaseTop -ne $baseTop
+        )
       }
-      [void][CodexPetQuota.NativeMethods]::SetWindowPos(
-        $petBase.Handle,
-        [IntPtr]$script:currentPetWindow.Handle,
-        $baseLeft,
-        $baseTop,
-        0,
-        0,
-        0x0011
+      $basePositionChanged = (
+        $nextBaseLeft -ne $petBase.Left -or
+        $nextBaseTop -ne $petBase.Top
       )
+      $zOrderMaintenanceDue = (
+        [DateTime]::Now - $script:lastBaseZOrderAt
+      ).TotalMilliseconds -ge 1000
+      if ($basePositionChanged -or $zOrderMaintenanceDue) {
+        [void][CodexPetQuota.NativeMethods]::SetWindowPos(
+          $petBase.Handle,
+          [IntPtr]$script:currentPetWindow.Handle,
+          $nextBaseLeft,
+          $nextBaseTop,
+          0,
+          0,
+          0x0011
+        )
+        $script:lastBaseZOrderAt = [DateTime]::Now
+      }
 
       if ($panel.Visible) {
         $panelLeft = $petBase.Left - $panel.Width - 8
@@ -3684,6 +3764,7 @@ $timer.Add_Tick({
     }
   } elseif (
     $leftButtonDown -or
+    $script:baseIsSettling -or
     [DateTime]::Now -lt $script:fastTrackingUntil
   ) {
     if ($timer.Interval -ne 16) {
@@ -3696,6 +3777,8 @@ $timer.Add_Tick({
     $petBase.Hide()
     $panel.Hide()
     $script:currentPetWindow = $null
+    $script:baseIsSettling = $false
+    $script:lastBaseTargetSignature = ''
     Reset-PetMascotTracking -ClearLastBounds
     Write-SidecarLog -Message (
       'Tracking frame recovered: ' + $_.Exception.Message
