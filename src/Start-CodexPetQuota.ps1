@@ -11,6 +11,7 @@ param(
   [switch]$AllowMultipleInstances,
   [switch]$ThemeSwitchDiagnostics,
   [switch]$PanelLayoutDiagnostics,
+  [switch]$MascotSelectionDiagnostics,
   [ValidateSet('', 'en-US', 'zh-CN')]
   [string]$Language = '',
   [string]$ConfigDirectoryOverride = ''
@@ -75,6 +76,7 @@ if (
   -not $Diagnostics -and
   -not $ThemeSwitchDiagnostics -and
   -not $PanelLayoutDiagnostics -and
+  -not $MascotSelectionDiagnostics -and
   -not $AllowMultipleInstances
 ) {
   $createdNew = $false
@@ -1264,6 +1266,79 @@ function Get-SmoothedDockCoordinate {
   return $Current + $step
 }
 
+function Get-StableMascotIdentity {
+  param(
+    [string]$Name,
+    [string]$RuntimeId
+  )
+
+  $normalizedName = $Name.Trim()
+  if (-not [string]::IsNullOrWhiteSpace($normalizedName)) {
+    return 'name|' + $normalizedName
+  }
+  return 'runtime|' + $RuntimeId
+}
+
+function Select-PetMascotCandidate {
+  param(
+    [Parameter(Mandatory = $true)]
+    [object[]]$Candidates,
+    $ReferenceBounds
+  )
+
+  $selectedCandidate = $null
+  $selectedDistance = [double]::PositiveInfinity
+  $selectedArea = 0.0
+  foreach ($candidate in $Candidates) {
+    $candidateRect = $candidate.Bounds
+    $candidateArea = (
+      [double]$candidateRect.Width *
+      [double]$candidateRect.Height
+    )
+    $candidateDistance = 0.0
+    if ($null -ne $ReferenceBounds) {
+      $candidateCenterX = (
+        [double]$candidateRect.X +
+        ([double]$candidateRect.Width / 2)
+      )
+      $candidateCenterY = (
+        [double]$candidateRect.Y +
+        ([double]$candidateRect.Height / 2)
+      )
+      $referenceCenterX = (
+        [double]$ReferenceBounds.Left +
+        ([double]$ReferenceBounds.Width / 2)
+      )
+      $referenceCenterY = (
+        [double]$ReferenceBounds.Top +
+        ([double]$ReferenceBounds.Height / 2)
+      )
+      $deltaX = $candidateCenterX - $referenceCenterX
+      $deltaY = $candidateCenterY - $referenceCenterY
+      $candidateDistance = (
+        ($deltaX * $deltaX) +
+        ($deltaY * $deltaY)
+      )
+    }
+
+    $distanceIsBetter = $candidateDistance -lt $selectedDistance
+    $distanceIsTied = (
+      [math]::Abs($candidateDistance - $selectedDistance) -lt 0.5
+    )
+    if (
+      $null -eq $selectedCandidate -or
+      $distanceIsBetter -or
+      ($distanceIsTied -and $candidateArea -ge $selectedArea)
+    ) {
+      $selectedCandidate = $candidate
+      $selectedDistance = $candidateDistance
+      $selectedArea = $candidateArea
+    }
+  }
+
+  return $selectedCandidate
+}
+
 function Get-PetMascotBounds {
   param($PetWindow)
 
@@ -1336,8 +1411,7 @@ function Get-PetMascotBounds {
         )
       }
 
-      $selectedMascot = $null
-      $selectedArea = 0.0
+      $mascotCandidates = @()
       $elements = $script:mascotAutomationRoot.FindAll(
         [System.Windows.Automation.TreeScope]::Descendants,
         [System.Windows.Automation.Condition]::TrueCondition
@@ -1354,35 +1428,36 @@ function Get-PetMascotBounds {
             $candidateRect.Width -gt 0 -and
             $candidateRect.Height -gt 0
           ) {
-            $candidateArea = (
-              [double]$candidateRect.Width *
-              [double]$candidateRect.Height
-            )
-            # React can briefly keep both pets in the automation tree while
-            # switching. Equal-sized replacements are appended after the old
-            # node, so prefer the later visible candidate.
-            if ($candidateArea -ge $selectedArea) {
-              $selectedArea = $candidateArea
-              $selectedMascot = $element
+            $mascotCandidates += [pscustomobject]@{
+              Element = $element
+              Bounds = $candidateRect
             }
           }
         }
       }
 
+      $selectedCandidate = Select-PetMascotCandidate `
+        -Candidates $mascotCandidates `
+        -ReferenceBounds $script:lastMascotBounds
+      $selectedMascot = if ($null -ne $selectedCandidate) {
+        $selectedCandidate.Element
+      } else {
+        $null
+      }
       if ($null -ne $selectedMascot) {
-        $selectedIdentity = try {
-          (
-            ($selectedMascot.GetRuntimeId() -join '.') +
-            '|' +
-            [string]$selectedMascot.Current.Name
-          )
+        $selectedName = try {
+          [string]$selectedMascot.Current.Name
         } catch {
-          (
-            [string]$selectedMascot.Current.ClassName +
-            '|' +
-            [string]$selectedMascot.Current.Name
-          )
+          ''
         }
+        $selectedRuntimeId = try {
+          $selectedMascot.GetRuntimeId() -join '.'
+        } catch {
+          [string]$selectedMascot.Current.ClassName
+        }
+        $selectedIdentity = Get-StableMascotIdentity `
+          -Name $selectedName `
+          -RuntimeId $selectedRuntimeId
         if (
           -not [string]::IsNullOrWhiteSpace(
             [string]$script:mascotAutomationIdentity
@@ -1392,6 +1467,9 @@ function Get-PetMascotBounds {
           $script:lastMascotBounds = $null
           $script:lastMascotSeenAt = [DateTime]::MinValue
           $script:lastMascotSignature = ''
+          $script:lastBaseTargetSignature = ''
+          $script:baseIsSettling = $false
+          $script:snapDockToMascotAtNextFrame = $true
           Extend-FastTracking -Milliseconds 1500
         }
         $script:mascotAutomationIdentity = $selectedIdentity
@@ -1459,6 +1537,55 @@ function Get-PetMascotBounds {
     Extend-FastTracking -Milliseconds 1500
     return $null
   }
+}
+
+if ($MascotSelectionDiagnostics) {
+  $referenceBounds = [pscustomobject]@{
+    Left = 100
+    Top = 100
+    Width = 120
+    Height = 140
+  }
+  $diagnosticCandidates = @(
+    [pscustomobject]@{
+      Id = 'main-current'
+      Element = $null
+      Bounds = [pscustomobject]@{
+        X = 102
+        Y = 99
+        Width = 120
+        Height = 140
+      }
+    },
+    [pscustomobject]@{
+      Id = 'picker-later-and-larger'
+      Element = $null
+      Bounds = [pscustomobject]@{
+        X = 700
+        Y = 220
+        Width = 180
+        Height = 180
+      }
+    }
+  )
+  $selectedDiagnosticCandidate = Select-PetMascotCandidate `
+    -Candidates $diagnosticCandidates `
+    -ReferenceBounds $referenceBounds
+  [pscustomobject]@{
+    selectedCandidate = $selectedDiagnosticCandidate.Id
+    remountIdentityStable = (
+      (
+        Get-StableMascotIdentity `
+          -Name 'Dewey pet' `
+          -RuntimeId '42.100'
+      ) -eq (
+        Get-StableMascotIdentity `
+          -Name 'Dewey pet' `
+          -RuntimeId '42.200'
+      )
+    )
+  } | ConvertTo-Json -Compress
+  exit 0
 }
 
 function Start-QuotaProbe {
@@ -2594,6 +2721,7 @@ $fastTrackingUntil = [DateTime]::MinValue
 $baseIsSettling = $false
 $lastBaseTargetSignature = ''
 $lastBaseZOrderAt = [DateTime]::MinValue
+$snapDockToMascotAtNextFrame = $false
 $isExiting = $false
 $lastTrayStatusKey = ''
 
@@ -3556,6 +3684,7 @@ $timer.Add_Tick({
     Reset-PetMascotTracking -ClearLastBounds
     $script:lastBaseTargetSignature = ''
     $script:baseIsSettling = $false
+    $script:snapDockToMascotAtNextFrame = $true
     Extend-FastTracking -Milliseconds 1500
   }
   $script:currentPetWindow = $trackedPetWindow
@@ -3684,6 +3813,15 @@ $timer.Add_Tick({
         $petBase.Location = New-Object System.Drawing.Point $baseLeft, $baseTop
         $petBase.Show()
         $script:baseIsSettling = $false
+        $script:snapDockToMascotAtNextFrame = $false
+      } elseif ($script:snapDockToMascotAtNextFrame) {
+        # A confirmed mascot replacement gets one atomic attachment frame.
+        # Smoothing from the previous pet would make the base visibly lag and
+        # create the impression that the pet itself changed position.
+        $nextBaseLeft = $baseLeft
+        $nextBaseTop = $baseTop
+        $script:baseIsSettling = $false
+        $script:snapDockToMascotAtNextFrame = $false
       } else {
         $nextBaseLeft = Get-SmoothedDockCoordinate `
           -Current $petBase.Left `

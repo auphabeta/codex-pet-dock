@@ -52,6 +52,21 @@ function Invoke-Diagnostics {
   return (($output -join [Environment]::NewLine) | ConvertFrom-Json)
 }
 
+function Invoke-MascotSelectionDiagnostics {
+  $output = & powershell.exe `
+    -NoProfile `
+    -ExecutionPolicy RemoteSigned `
+    -File $sidecarScript `
+    -MascotSelectionDiagnostics 2>&1
+  if ($LASTEXITCODE -ne 0) {
+    throw (
+      'Mascot selection diagnostics failed: ' +
+      ($output -join ' ')
+    )
+  }
+  return (($output -join [Environment]::NewLine) | ConvertFrom-Json)
+}
+
 Add-Type -AssemblyName System.Drawing
 
 $requiredAssets = @(
@@ -398,6 +413,9 @@ Add-TestResult `
   -Passed (
     $sidecarSource -match 'Reset-PetMascotTracking -ClearLastBounds' -and
     $sidecarSource -match '\$mascotAutomationIdentity' -and
+    $sidecarSource -match 'Get-StableMascotIdentity' -and
+    $sidecarSource -match 'Select-PetMascotCandidate' -and
+    $sidecarSource -match '\$snapDockToMascotAtNextFrame' -and
     $sidecarSource -match (
       '(?s)\$petSearchIntervalSeconds\s*=\s*if\s*\(.+?' +
       '\)\s*\{.+?\}\s*else\s*\{\s*0\.5'
@@ -405,6 +423,20 @@ Add-TestResult `
     $sidecarSource -match '80\s*\r?\n\s*\}\s*else\s*\{\s*\r?\n\s*500' -and
     $sidecarSource -match '\$lastMascotGraceSeconds' -and
     $sidecarSource -match '0\.35'
+  )
+$mascotSelectionDiagnostics = Invoke-MascotSelectionDiagnostics
+Add-TestResult `
+  -Area 'Interaction' `
+  -Name 'First pet switch keeps the on-screen anchor and ignores remount IDs' `
+  -Passed (
+    $mascotSelectionDiagnostics.selectedCandidate -eq 'main-current' -and
+    $mascotSelectionDiagnostics.remountIdentityStable
+  ) `
+  -Detail (
+    'selected=' +
+    [string]$mascotSelectionDiagnostics.selectedCandidate +
+    ', identityStable=' +
+    [string]$mascotSelectionDiagnostics.remountIdentityStable
   )
 Add-TestResult `
   -Area 'Power policy' `
