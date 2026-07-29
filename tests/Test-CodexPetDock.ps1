@@ -728,18 +728,45 @@ Add-TestResult `
     $installerSource -match
       "@\('src', 'assets', 'docs', '\.agents'\)" -and
     $previewBuildSource -match
-      "@\('src', 'docs', 'packaging', '\.agents'\)"
+      "\$themeSkillRelativeRoot = '\.agents\\skills\\codex-pet-dock-theme'" -and
+    $previewBuildSource -match "'agents\\openai\.yaml'"
   )
 Add-TestResult `
   -Area 'Packaging' `
-  -Name 'README autoplays an optimized GIF excluded from the release package' `
+  -Name 'README autoplays an optimized repository-only GIF' `
   -Passed (
     (Test-Path -LiteralPath $demoVideoPath) -and
     (Test-Path -LiteralPath $demoPosterPath) -and
     (Test-Path -LiteralPath $demoGifPath) -and
     (Get-Item -LiteralPath $demoGifPath).Length -lt 15MB -and
-    $readmeSource -match 'docs/video/yanshi-readme\.gif' -and
-    $previewBuildSource -match "'yanshi\.mp4', 'yanshi-readme\.gif'"
+    $readmeSource -match 'docs/video/yanshi-readme\.gif'
+  )
+Add-TestResult `
+  -Area 'Packaging' `
+  -Name 'Release excludes screenshots, videos and repository audit media' `
+  -Passed (
+    $previewBuildSource -match
+      "'docs\\media'" -and
+    $previewBuildSource -match
+      "'docs\\screenshots'" -and
+    $previewBuildSource -match
+      "'docs\\video'" -and
+    $previewBuildSource -match
+      "'\.agents\\skills\\codex-pet-dock-theme\\darwin-result-card\.png'" -and
+    $previewBuildSource -match
+      "'assets\\themes\\built-in-themes-preview\.png'" -and
+    $previewBuildSource -match
+      'Release contains repository-only media or audit artifacts'
+  )
+$licensePath = Join-Path $projectRoot 'LICENSE'
+Add-TestResult `
+  -Area 'Packaging' `
+  -Name 'MIT license ships with the release and installed application' `
+  -Passed (
+    (Test-Path -LiteralPath $licensePath) -and
+    (Get-Content -Raw -LiteralPath $licensePath) -match '^MIT License' -and
+    $previewBuildSource -match "'LICENSE'" -and
+    $installerSource -match "'LICENSE'"
   )
 try {
   $installerValidation = & powershell.exe `

@@ -30,20 +30,49 @@ foreach ($target in @($stagingRoot, $zipPath, $checksumPath)) {
 }
 [void][System.IO.Directory]::CreateDirectory($stagingRoot)
 
-foreach ($directory in @('src', 'docs', 'packaging', '.agents')) {
+foreach ($directory in @('src', 'packaging')) {
   Copy-Item `
     -LiteralPath (Join-Path $projectRoot $directory) `
     -Destination $stagingRoot `
     -Recurse `
     -Force
 }
-# The README poster stays in the package, while large repository-only motion
-# assets are omitted so documentation does not inflate user downloads.
-foreach ($demoAsset in @('yanshi.mp4', 'yanshi-readme.gif')) {
-  $packagedDemoAsset = Join-Path $stagingRoot ('docs\video\' + $demoAsset)
-  if (Test-Path -LiteralPath $packagedDemoAsset) {
-    Remove-Item -LiteralPath $packagedDemoAsset -Force
+
+# Release archives are installable artifacts, not mirrors of the source
+# repository. Keep text documentation, but leave screenshots, videos and
+# media-source libraries in GitHub where they can be viewed without inflating
+# every user's download.
+[void][System.IO.Directory]::CreateDirectory((Join-Path $stagingRoot 'docs'))
+foreach ($document in Get-ChildItem -LiteralPath (Join-Path $projectRoot 'docs') -File) {
+  if ($document.Extension -ne '.md') {
+    continue
   }
+  Copy-Item `
+    -LiteralPath $document.FullName `
+    -Destination (Join-Path $stagingRoot ('docs\' + $document.Name)) `
+    -Force
+}
+
+$themeSkillRelativeRoot = '.agents\skills\codex-pet-dock-theme'
+$themeSkillFiles = @(
+  'SKILL.md',
+  'agents\openai.yaml'
+)
+foreach ($themeSkillFile in $themeSkillFiles) {
+  $themeSkillDestination = Join-Path `
+    (Join-Path $stagingRoot $themeSkillRelativeRoot) `
+    $themeSkillFile
+  [void][System.IO.Directory]::CreateDirectory(
+    (Split-Path -Parent $themeSkillDestination)
+  )
+  Copy-Item `
+    -LiteralPath (
+      Join-Path `
+        (Join-Path $projectRoot $themeSkillRelativeRoot) `
+        $themeSkillFile
+    ) `
+    -Destination $themeSkillDestination `
+    -Force
 }
 [void][System.IO.Directory]::CreateDirectory(
   (Join-Path $stagingRoot 'tests')
@@ -105,8 +134,7 @@ foreach ($asset in @(
   'themes\clockwork-brass.png',
   'themes\moon-lotus.png',
   'themes\sakura-shrine.png',
-  'themes\iron-throne.png',
-  'themes\built-in-themes-preview.png'
+  'themes\iron-throne.png'
 )) {
   $assetSource = Join-Path (Join-Path $projectRoot 'assets') $asset
   $assetDestination = Join-Path (Join-Path $stagingRoot 'assets') $asset
@@ -123,7 +151,8 @@ foreach ($file in @(
   'CHANGELOG.md',
   'PRIVACY.md',
   'SECURITY.md',
-  'NOTICE.md'
+  'NOTICE.md',
+  'LICENSE'
 )) {
   $sourcePath = Join-Path $projectRoot $file
   if (Test-Path -LiteralPath $sourcePath) {
@@ -132,6 +161,42 @@ foreach ($file in @(
       -Destination (Join-Path $stagingRoot $file) `
       -Force
   }
+}
+
+$forbiddenReleaseEntries = @(
+  'docs\media',
+  'docs\screenshots',
+  'docs\video',
+  '.agents\skills\codex-pet-dock-theme\darwin-result-card.png',
+  '.agents\skills\codex-pet-dock-theme\results.tsv',
+  '.agents\skills\codex-pet-dock-theme\test-prompts.json',
+  'assets\themes\built-in-themes-preview.png'
+)
+$stagingPrefixLength = $stagingRoot.TrimEnd('\').Length + 1
+$packagedRelativeFiles = @(
+  Get-ChildItem -LiteralPath $stagingRoot -Recurse -File |
+    ForEach-Object {
+      $_.FullName.Substring($stagingPrefixLength)
+    }
+)
+$unexpectedReleaseEntries = @(
+  foreach ($forbiddenEntry in $forbiddenReleaseEntries) {
+    $forbiddenPrefix = $forbiddenEntry.TrimEnd('\') + '\'
+    $packagedRelativeFiles |
+      Where-Object {
+        $_ -ieq $forbiddenEntry -or
+        $_.StartsWith(
+          $forbiddenPrefix,
+          [System.StringComparison]::OrdinalIgnoreCase
+        )
+      }
+  }
+)
+if ($unexpectedReleaseEntries.Count -gt 0) {
+  throw (
+    'Release contains repository-only media or audit artifacts: ' +
+    (($unexpectedReleaseEntries | Sort-Object -Unique) -join ', ')
+  )
 }
 
 Compress-Archive `

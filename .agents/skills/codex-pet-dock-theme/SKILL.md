@@ -17,21 +17,27 @@ names, geometry, files, and validation yourself.
 2. Keep the creative interaction effortless:
    - If the request is open-ended, offer exactly three distinct directions.
      Give each a short name, style, palette, material, and one-sentence visual
-     description, then ask the user to pick one.
+     description.
+     **🔴 CHECKPOINT — visual direction:** stop and wait for the user to pick
+     one. Do not generate or install a theme before the choice.
    - If the user already gave a concrete direction or reference image, use it
      directly instead of asking them to repeat it.
    - Never ask the user for dimensions, coordinates, manifest fields, or a
      theme ID. Derive the display name and stable lowercase ID yourself.
+     Use a known author prefix when available, otherwise `local`.
    - Ask one concise follow-up only when a missing visual choice would
      materially change the result.
-3. If image generation or editing is available, create a real transparent PNG
-   containing only the base. Prefer a 896x288 source for a 224x72 runtime base.
-   Otherwise ask the user for a transparent PNG and pause.
-4. Work in a temporary directory first. Create only `platform.png` and
-   `theme.json`. Calibrate the visible contact surface, overlap, shadow, metric
-   offset, scrim, and accent from the actual artwork.
+3. Generate a real transparent PNG containing only the base, preferably
+   896x288 for a 224x72 theme. Follow the active image tool's alpha workflow;
+   chroma is only an intermediate. If image tools are unavailable, ask for one
+   transparent PNG and stop.
+4. Work in a temporary directory. Keep intermediates outside the final
+   candidate, normalize its aspect ratio, and put exactly `platform.png` and
+   `theme.json` inside. Calibrate contact, overlap, shadow, metric offset,
+   scrim, and accent from the artwork.
 5. Validate the image alpha channel, transparent corners, size, dimensions,
-   safe file name, manifest whitelist, contact geometry, and text area.
+   safe file name, manifest whitelist, contact geometry, and both text areas.
+   Parse `theme.json` with the installed runtime before copying it anywhere.
 6. Copy the candidate to a temporary `ConfigDirectoryOverride\themes\<id>`
    and run:
 
@@ -42,15 +48,40 @@ names, geometry, files, and validation yourself.
      -ConfigDirectoryOverride <temporary-config-directory>
    ```
 
-   Require the target theme to report successful switching, persistence,
-   layout, alpha coverage, contact fit, and native pet-window drag delegation.
+   Parse the JSON report and select the target result. Pass only when
+   `report.ok` is true; its target has true `switched`, `persisted`,
+   `layoutFits`, `controlSizeFits`, `fontFits`, `contactFits`, and
+   `dragDelegatesToPet`; and `alphaCoverage >= 0.95`.
+   Require native pet-window drag delegation. Never lower a threshold.
 7. Only after validation, install the two files under
-   `%LOCALAPPDATA%\CodexPetDock\themes\<id>`. If that directory already exists,
-   show the files that would be replaced and obtain confirmation first.
+   `%LOCALAPPDATA%\CodexPetDock\themes\<id>`.
+   **🔴 CHECKPOINT — overwrite:** if that directory already exists, show the
+   current and candidate `platform.png` and `theme.json` with sizes and hashes,
+   then stop for confirmation. If declined, install under a newly derived ID
+   or leave the existing theme untouched.
 8. Signal the named event `Local\CodexPetDock.ReloadThemes` when it exists.
-   Otherwise tell the user to choose `Reload custom themes` from the tray.
-9. Report the installed paths, image dimensions and alpha result, validation
-   result, and how to select the theme.
+   Otherwise report `Reload custom themes` as the exact tray recovery path;
+   do not automate the menu.
+9. Only when installation or end-to-end validation was requested and a pet is
+   visible, select the theme without editing Codex, inspect contact, metrics,
+   and the card, then restart only Pet Dock once and confirm restoration. If
+   unsafe or unavailable, mark this check pending and give the tray path.
+10. Report paths, dimensions, alpha corners, diagnostic fields, repair rounds,
+    reload, visual and restart results, plus the selection path.
+
+## Validation recovery
+
+Make at most three candidate rounds, counting the initial candidate as round
+one. Repair one failure or coupled failure cluster, then rerun all diagnostics.
+
+| Trigger | One repair | If it still fails |
+|---|---|---|
+| Missing alpha or opaque corners | Redo generation or background removal | Stop; do not install |
+| `alphaCoverage < 0.95` | Move content or strengthen the opaque metric face | Stop after round three; keep the threshold |
+| `contactFits` is false | Recalibrate contact, overlap, and shadow from visible pixels | Stop and report the gap |
+| Layout or font fails | Recalibrate geometry; use compact text only for a short panel | Stop and report the field |
+| Switch, persistence, or drag fails | Recheck the manifest and rerun in a clean temporary config | Stop as incompatible |
+| Reload or visual check fails | Report the step and tray recovery path | Do not claim end-to-end success |
 
 ## Hard boundaries
 
