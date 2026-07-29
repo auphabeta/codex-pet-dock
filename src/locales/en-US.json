@@ -38,7 +38,7 @@
     "Refresh": "Refresh",
     "BaseTheme": "Base theme",
     "CreateWithCodex": "Create with Codex...",
-    "CreateWithCodexPrompt": "$codex-pet-dock-theme Create and install a custom Codex Pet Dock base. First ask me for the visual concept, colors, name, and whether I already have a transparent PNG or reference image.",
+    "CreateWithCodexPrompt": "$codex-pet-dock-theme\n\nDesign a base that genuinely suits my current pet.\nFirst offer three distinct visual directions I can choose from; do not ask me for technical parameters. After I choose, automatically generate, calibrate, validate, install, and hot-reload it. If I attach a reference image, follow its visual language.",
     "ReloadThemes": "Reload custom themes",
     "CustomThemePrefix": "Custom - {0}",
     "CustomThemesLoaded": "{0} custom base theme(s) loaded.",

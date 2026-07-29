@@ -5,20 +5,25 @@ description: Create, refine, validate, and install a safe custom visual base for
 
 # Create a Codex Pet Dock theme
 
-Turn the user's visual direction into one installed, data-only theme. Keep the
-conversation creative for the user and handle geometry and validation yourself.
+Turn the user's visual direction into one installed, data-only theme. Make the
+experience feel like choosing a design, not filling in a technical form; handle
+names, geometry, files, and validation yourself.
 
 ## Workflow
 
 1. Locate this Pet Dock workspace from the current directory. Read
    `docs/custom-themes.md` and the local
    `%LOCALAPPDATA%\CodexPetDock\themes\theme.example.json` when it exists.
-2. Ask only for missing creative inputs:
-   - visual concept;
-   - color direction;
-   - display name;
-   - whether an existing transparent PNG or reference image is available.
-   Derive a stable lowercase theme ID unless the user supplies one.
+2. Keep the creative interaction effortless:
+   - If the request is open-ended, offer exactly three distinct directions.
+     Give each a short name, style, palette, material, and one-sentence visual
+     description, then ask the user to pick one.
+   - If the user already gave a concrete direction or reference image, use it
+     directly instead of asking them to repeat it.
+   - Never ask the user for dimensions, coordinates, manifest fields, or a
+     theme ID. Derive the display name and stable lowercase ID yourself.
+   - Ask one concise follow-up only when a missing visual choice would
+     materially change the result.
 3. If image generation or editing is available, create a real transparent PNG
    containing only the base. Prefer a 896x288 source for a 224x72 runtime base.
    Otherwise ask the user for a transparent PNG and pause.

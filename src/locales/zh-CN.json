@@ -38,7 +38,7 @@
     "Refresh": "立即刷新",
     "BaseTheme": "底座主题",
     "CreateWithCodex": "用 Codex 创建底座…",
-    "CreateWithCodexPrompt": "$codex-pet-dock-theme 帮我创建并安装一个 Codex Pet Dock 自定义底座。先询问我想要的风格、配色、名称，以及是否已有透明 PNG 或参考图。",
+    "CreateWithCodexPrompt": "$codex-pet-dock-theme\n\n帮我设计一款真正适合当前宠物的底座。\n先给我 3 个差异明显、可以直接选择的视觉方案，不要让我填写技术参数；我选定后，再自动生成、校准、验证、安装并热重载。如果我附了参考图，优先沿用它的视觉语言。",
     "ReloadThemes": "重新加载自定义主题",
     "CustomThemePrefix": "自定义 - {0}",
     "CustomThemesLoaded": "已加载 {0} 个自定义底座主题。",

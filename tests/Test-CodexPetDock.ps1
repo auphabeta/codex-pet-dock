@@ -629,6 +629,15 @@ try {
       ($creatorDiagnosticsOutput -join [Environment]::NewLine) |
         ConvertFrom-Json
     )
+    $guidedPrompt = if ($creatorLanguage -eq 'zh-CN') {
+      [string]$creatorDiagnostics.prompt -eq
+        [string]$chineseLocale.app.CreateWithCodexPrompt -and
+      [string]$creatorDiagnostics.prompt -match '3'
+    } else {
+      [string]$creatorDiagnostics.prompt -match 'three distinct' -and
+      [string]$creatorDiagnostics.prompt -match
+        'do not ask me for technical parameters'
+    }
     Add-TestResult `
       -Area 'Custom themes' `
       -Name ('Codex creator deep link works in ' + $creatorLanguage) `
@@ -639,6 +648,7 @@ try {
         [string]$creatorDiagnostics.deepLinkScheme -eq 'codex' -and
         $creatorDiagnostics.promptEncoded -and
         $creatorDiagnostics.workspaceEncoded -and
+        $guidedPrompt -and
         [string]$creatorDiagnostics.prompt -match
           '^\$codex-pet-dock-theme'
       )

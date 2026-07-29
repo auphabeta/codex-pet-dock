@@ -9,9 +9,10 @@ For most users:
 
 1. Open the tray menu.
 2. Choose `Base theme` → `Create with Codex...`.
-3. Describe the visual concept in the new Codex conversation.
-4. Answer the short questions about colors, name, and any existing transparent
-   PNG or reference image.
+3. Pick one of the three visual directions proposed by Codex, or provide a
+   concrete idea or reference image.
+4. Do not fill in dimensions, coordinates, IDs, or manifest fields; the skill
+   derives them from the selected artwork.
 5. Let the bundled `$codex-pet-dock-theme` skill generate, validate, install,
    and hot-reload the data-only theme.
 6. Select `Custom - <theme name>` from `Base theme`.

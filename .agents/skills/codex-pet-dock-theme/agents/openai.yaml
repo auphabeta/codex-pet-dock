@@ -1,4 +1,4 @@
 interface:
   display_name: "Create Pet Dock Theme"
   short_description: "Design, validate, and install a custom pet base"
-  default_prompt: "Use $codex-pet-dock-theme to create and install a custom Codex Pet Dock base."
+  default_prompt: "Use $codex-pet-dock-theme to offer three visual directions, then create and install my chosen Pet Dock base."
