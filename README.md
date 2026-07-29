@@ -291,3 +291,11 @@ powershell -NoProfile -ExecutionPolicy RemoteSigned `
 powershell -NoProfile -ExecutionPolicy RemoteSigned `
   -File .\packaging\Build-Preview.ps1
 ```
+
+## 开源许可
+
+Codex Pet Dock 采用 [MIT License](LICENSE) 开源。你可以自由使用、修改和
+分发代码及项目自带的底座资源，但需保留许可证与版权声明。
+
+本项目是独立社区项目，不由 OpenAI 开发、认可或提供支持；Codex 等名称可能是
+其各自权利人的商标。详见 [NOTICE.md](NOTICE.md)。

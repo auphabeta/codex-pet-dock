@@ -130,7 +130,9 @@ foreach ($file in @(
   'CodexPetDock.vbs',
   'README.md',
   'PRODUCT.md',
-  'CHANGELOG.md'
+  'CHANGELOG.md',
+  'LICENSE',
+  'NOTICE.md'
 )) {
   Copy-Item `
     -LiteralPath (Join-Path $sourceRoot $file) `
