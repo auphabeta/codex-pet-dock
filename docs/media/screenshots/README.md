@@ -13,7 +13,7 @@ Captured: 2026-07-29
 - Theme gallery: use the eight `capybara-*` images
 - Pet switching demo: compare the three `pet-switch-*-holo-cyan-*` pets
 - Animation compatibility demo: use the standing, sitting, and running girl captures
-- Custom-theme article: pair one detail screenshot with the Theme Studio flow
+- Custom-theme article: pair one detail screenshot with the Codex creation flow
 - Exact dimensions and SHA-256 values: see `manifest.json`
 
 Before publishing publicly, decide whether to keep or blur the exact Token
@@ -110,18 +110,11 @@ change without separating the base from the pet.
 No source-code changes are required.
 
 1. Right-click the Codex Pet Dock tray icon.
-2. Choose `Base theme` -> `Create or edit custom base...`.
-3. Select a transparent PNG.
-4. Adjust runtime size, the dashed pet contact surface, overlap, metric offset,
-   scrim strength, compact text, and accent color.
-5. Choose `Save & reload`.
-6. Select `Custom - <theme name>` from the `Base theme` menu.
-
-Advanced authors may place `theme.json` and `platform.png` under:
-
-```text
-%LOCALAPPDATA%\CodexPetDock\themes\<theme-id>\
-```
+2. Choose `Base theme` -> `Create with Codex...`.
+3. Describe the visual style and optionally attach a reference image.
+4. Let `$codex-pet-dock-theme` create, validate, install, and hot-reload the
+   data-only theme.
+5. Select `Custom - <theme name>` from the `Base theme` menu.
 
 Then choose `Reload custom themes`. Custom themes are data-only: scripts,
 commands, URLs, CSS, and JavaScript are rejected. See

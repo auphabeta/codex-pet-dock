@@ -110,7 +110,8 @@ Stop-InstalledPreview
 [void][System.IO.Directory]::CreateDirectory($startMenuRoot)
 
 foreach ($obsoleteRelativePath in @(
-  'src\quota-probe.mjs'
+  'src\quota-probe.mjs',
+  'src\Start-CodexPetThemeStudio.ps1'
 )) {
   $obsoletePath = Join-Path $installRoot $obsoleteRelativePath
   if ([System.IO.File]::Exists($obsoletePath)) {

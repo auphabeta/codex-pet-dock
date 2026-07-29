@@ -38,7 +38,7 @@ conversation creative for the user and handle geometry and validation yourself.
    ```
 
    Require the target theme to report successful switching, persistence,
-   layout, alpha coverage, contact fit, and drag-surface pass-through.
+   layout, alpha coverage, contact fit, and native pet-window drag delegation.
 7. Only after validation, install the two files under
    `%LOCALAPPDATA%\CodexPetDock\themes\<id>`. If that directory already exists,
    show the files that would be replaced and obtain confirmation first.

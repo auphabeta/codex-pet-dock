@@ -207,10 +207,11 @@ DPI 缩放只放大字体而不放大底座窗口。
 文件大小、图片尺寸、布局范围和文字可见性校验，再加入主题目录；无效主题只写
 本地日志，不影响内置主题和主循环。加载器不接受任何代码或远程资源。
 
-Theme Studio 使用与运行时相同的几何字段生成预览，保存时采用临时文件 +
-原子替换。保存完成后设置 `Local\CodexPetDock.ReloadThemes` 本机命名事件；
-主进程下一次 UI Tick 重载目录，但不增加轮询计时器或网络请求。重复启动入口
-通过 `Local\CodexPetDock.Activate` 唤醒现有实例并显示连接状态。
+Codex 主题 Skill 使用临时配置目录和运行时诊断契约校验素材与几何，通过后再
+原子安装 PNG 与 JSON。保存完成后设置
+`Local\CodexPetDock.ReloadThemes` 本机命名事件；主进程下一次 UI Tick
+重载目录，但不增加轮询计时器或网络请求。重复启动入口通过
+`Local\CodexPetDock.Activate` 唤醒现有实例并显示连接状态。
 
 ## 7. 生命周期和失败方式
 

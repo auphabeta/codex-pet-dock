@@ -6,9 +6,6 @@ param(
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $sidecarScript = Join-Path $projectRoot 'src\Start-CodexPetQuota.ps1'
-$themeStudioScript = Join-Path `
-  $projectRoot `
-  'src\Start-CodexPetThemeStudio.ps1'
 $themeCreatorScript = Join-Path `
   $projectRoot `
   'src\Start-CodexPetThemeCreator.ps1'
@@ -592,16 +589,14 @@ try {
 }
 Add-TestResult `
   -Area 'Custom themes' `
-  -Name 'AI creator, advanced studio, and hot reload entry points exist' `
+  -Name 'AI creator is the only custom-theme creation entry point' `
   -Passed (
-    (Test-Path -LiteralPath $themeStudioScript) -and
     (Test-Path -LiteralPath $themeCreatorScript) -and
     (Test-Path -LiteralPath $themeSkillPath) -and
     $sidecarSource -match 'Start-CodexPetThemeCreator\.ps1' -and
-    $sidecarSource -match 'Start-CodexPetThemeStudio\.ps1' -and
+    $sidecarSource -notmatch 'Start-CodexPetThemeStudio\.ps1' -and
     $sidecarSource -match 'Local\\CodexPetDock\.ReloadThemes' -and
     $englishLocaleSource -match 'Create with Codex' -and
-    $englishLocaleSource -match 'Advanced: tune a base manually' -and
     $englishLocaleSource -match 'Reload custom themes'
   )
 $themeSkillSource = if (Test-Path -LiteralPath $themeSkillPath) {
@@ -614,7 +609,7 @@ Add-TestResult `
   -Name 'Bundled Codex skill enforces safe generation and validation' `
   -Passed (
     $themeSkillSource -match 'ThemeSwitchDiagnostics' -and
-    $themeSkillSource -match 'drag-surface pass-through' -and
+    $themeSkillSource -match 'native pet-window drag delegation' -and
     $themeSkillSource -match '%LOCALAPPDATA%\\CodexPetDock\\themes' -and
     $themeSkillSource -match 'app\.asar' -and
     $themeSkillSource -match 'Do not silently overwrite' -and
@@ -675,111 +670,6 @@ Add-TestResult `
     $vibePromptSource -match 'ThemeSwitchDiagnostics' -and
     $vibePromptSource -match 'Reload custom themes'
   )
-try {
-  $studioDiagnosticsOutput = & powershell.exe `
-    -NoProfile `
-    -ExecutionPolicy RemoteSigned `
-    -File $themeStudioScript `
-    -Diagnostics `
-    -Language 'en-US' 2>&1
-  $studioDiagnosticsExit = $LASTEXITCODE
-  $studioDiagnostics = (
-    ($studioDiagnosticsOutput -join [Environment]::NewLine) |
-      ConvertFrom-Json
-  )
-  Add-TestResult `
-    -Area 'Custom themes' `
-    -Name 'Theme Studio contract is data-only and hot-reloadable' `
-    -Passed (
-      $studioDiagnosticsExit -eq 0 -and
-      $studioDiagnostics.ok -and
-      [string]$studioDiagnostics.language -eq 'en-US' -and
-      @($studioDiagnostics.supportedLanguages).Count -eq 2 -and
-      $studioDiagnostics.supportsHotReload -and
-      -not $studioDiagnostics.executableFieldsAllowed -and
-      [int]$studioDiagnostics.schemaVersion -eq 1
-    )
-
-  $studioLayoutOutput = & powershell.exe `
-    -NoProfile `
-    -ExecutionPolicy RemoteSigned `
-    -File $themeStudioScript `
-    -LayoutDiagnostics `
-    -Language 'en-US' 2>&1
-  $studioLayoutExit = $LASTEXITCODE
-  $studioLayout = (
-    ($studioLayoutOutput -join [Environment]::NewLine) |
-      ConvertFrom-Json
-  )
-  Add-TestResult `
-    -Area 'Custom themes' `
-    -Name 'Theme Studio controls fit inside the 0.3 layout' `
-    -Passed (
-      $studioLayoutExit -eq 0 -and
-      $studioLayout.ok -and
-      [string]$studioLayout.language -eq 'en-US' -and
-      @($studioLayout.controls).Count -ge 20
-    ) `
-    -Detail (
-      [string]$studioLayout.clientWidth +
-      'x' +
-      [string]$studioLayout.clientHeight +
-      ', controls=' +
-      [string]@($studioLayout.controls).Count
-    )
-
-  $chineseStudioDiagnosticsOutput = & powershell.exe `
-    -NoProfile `
-    -ExecutionPolicy RemoteSigned `
-    -File $themeStudioScript `
-    -Diagnostics `
-    -Language 'zh-CN' 2>&1
-  $chineseStudioDiagnosticsExit = $LASTEXITCODE
-  $chineseStudioDiagnostics = (
-    ($chineseStudioDiagnosticsOutput -join [Environment]::NewLine) |
-      ConvertFrom-Json
-  )
-  $chineseStudioLayoutOutput = & powershell.exe `
-    -NoProfile `
-    -ExecutionPolicy RemoteSigned `
-    -File $themeStudioScript `
-    -LayoutDiagnostics `
-    -Language 'zh-CN' 2>&1
-  $chineseStudioLayoutExit = $LASTEXITCODE
-  $chineseStudioLayout = (
-    ($chineseStudioLayoutOutput -join [Environment]::NewLine) |
-      ConvertFrom-Json
-  )
-  $badChineseStudioControls = @(
-    $chineseStudioLayout.controls |
-      Where-Object { -not $_.insideClient -or -not $_.textFits }
-  )
-  Add-TestResult `
-    -Area 'Localization' `
-    -Name 'Chinese Theme Studio contract and controls are complete' `
-    -Passed (
-      $chineseStudioDiagnosticsExit -eq 0 -and
-      $chineseStudioDiagnostics.ok -and
-      [string]$chineseStudioDiagnostics.language -eq 'zh-CN' -and
-      $chineseStudioLayoutExit -eq 0 -and
-      $chineseStudioLayout.ok -and
-      [string]$chineseStudioLayout.language -eq 'zh-CN' -and
-      $badChineseStudioControls.Count -eq 0
-    ) `
-    -Detail (
-      'controls=' +
-      [string]@($chineseStudioLayout.controls).Count +
-      ', clipped=' +
-      [string]$badChineseStudioControls.Count
-    )
-} catch {
-  Add-TestResult `
-    -Area 'Custom themes' `
-    -Name 'Theme Studio contract is data-only and hot-reloadable' `
-    -Passed $false `
-    -Detail $_.Exception.Message
-}
-
 $installerScript = Join-Path `
   $projectRoot `
   'packaging\Install-CodexPetDock.ps1'
@@ -952,7 +842,7 @@ try {
         -not $_.fontFits -or
         [double]$_.alphaCoverage -lt 0.95 -or
         -not $_.contactFits -or
-        -not $_.dragSurfacePassesThrough
+        -not $_.dragDelegatesToPet
       }
   )
   $loadedCustomTheme = @(
@@ -1305,6 +1195,28 @@ public static class CodexPetDockTestNative
         IntPtr lParam
     );
 
+    [DllImport("user32.dll")]
+    public static extern bool SetCursorPos(int x, int y);
+
+    [DllImport("user32.dll")]
+    public static extern bool GetCursorPos(out POINT point);
+
+    [DllImport("user32.dll")]
+    public static extern void mouse_event(
+        uint flags,
+        uint dx,
+        uint dy,
+        uint data,
+        UIntPtr extraInfo
+    );
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct POINT
+    {
+        public int X;
+        public int Y;
+    }
+
     public static List<IntPtr> VisibleWindowsForProcess(uint wanted)
     {
         var windows = new List<IntPtr>();
@@ -1377,45 +1289,81 @@ public static class CodexPetDockTestNative
         [ref]$baseRectBefore
       )
 
-      $hitTestScreenX = [int](
+      $dragScreenX = [int](
         $baseRectBefore.Left +
         (($baseRectBefore.Right - $baseRectBefore.Left) / 2)
       )
-      $topHitTestScreenY = [int]($baseRectBefore.Top + 5)
-      $lowerHitTestScreenY = [int]($baseRectBefore.Top + 55)
-      $topHitTestPoint = [IntPtr](
-        (($topHitTestScreenY -band 0xffff) -shl 16) -bor
-        ($hitTestScreenX -band 0xffff)
-      )
-      $lowerHitTestPoint = [IntPtr](
-        (($lowerHitTestScreenY -band 0xffff) -shl 16) -bor
-        ($hitTestScreenX -band 0xffff)
-      )
-      $topHitTest = [CodexPetDockTestNative]::SendMessage(
+      $dragScreenY = [int]($baseRectBefore.Top + 20)
+      $cursorBefore = New-Object CodexPetDockTestNative+POINT
+      [void][CodexPetDockTestNative]::GetCursorPos([ref]$cursorBefore)
+      [void][CodexPetDockTestNative]::SetWindowPos(
         $baseHandleBefore,
-        0x0084,
-        [IntPtr]::Zero,
-        $topHitTestPoint
-      ).ToInt64()
-      $lowerHitTest = [CodexPetDockTestNative]::SendMessage(
-        $baseHandleBefore,
-        0x0084,
-        [IntPtr]::Zero,
-        $lowerHitTestPoint
-      ).ToInt64()
+        [IntPtr](-1),
+        0,
+        0,
+        0,
+        0,
+        0x0013
+      )
+      [void][CodexPetDockTestNative]::SetCursorPos(
+        $dragScreenX,
+        $dragScreenY
+      )
+      [CodexPetDockTestNative]::mouse_event(
+        0x0002,
+        0,
+        0,
+        0,
+        [UIntPtr]::Zero
+      )
+      Start-Sleep -Milliseconds 100
+      [void][CodexPetDockTestNative]::SetCursorPos(
+        $dragScreenX + 36,
+        $dragScreenY + 18
+      )
+      Start-Sleep -Milliseconds 250
+      [CodexPetDockTestNative]::mouse_event(
+        0x0004,
+        0,
+        0,
+        0,
+        [UIntPtr]::Zero
+      )
+      Start-Sleep -Milliseconds 400
+      $petRectAfterDrag = New-Object CodexPetDockTestNative+RECT
+      [void][CodexPetDockTestNative]::GetWindowRect(
+        $petHandle,
+        [ref]$petRectAfterDrag
+      )
+      $dragDeltaX = $petRectAfterDrag.Left - $originalPetRect.Left
+      $dragDeltaY = $petRectAfterDrag.Top - $originalPetRect.Top
       Add-TestResult `
         -Area 'Interaction' `
-        -Name 'Raised base surface passes dragging through to the pet' `
+        -Name 'Dragging the raised base surface moves the official pet' `
         -Passed (
-          $topHitTest -eq -1 -and
-          $lowerHitTest -ne -1
+          [math]::Abs($dragDeltaX) -ge 20 -and
+          [math]::Abs($dragDeltaY) -ge 8
         ) `
         -Detail (
-          'top=' +
-          [string]$topHitTest +
-          ', metrics=' +
-          [string]$lowerHitTest
+          'delta=' +
+          [string]$dragDeltaX +
+          ',' +
+          [string]$dragDeltaY
         )
+      [void][CodexPetDockTestNative]::SetWindowPos(
+        $petHandle,
+        [IntPtr]::Zero,
+        $originalPetRect.Left,
+        $originalPetRect.Top,
+        0,
+        0,
+        0x0015
+      )
+      [void][CodexPetDockTestNative]::SetCursorPos(
+        $cursorBefore.X,
+        $cursorBefore.Y
+      )
+      Start-Sleep -Milliseconds 400
 
       $childHandle = [CodexPetDockTestNative]::GetWindow(
         $baseHandleBefore,

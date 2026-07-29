@@ -212,15 +212,10 @@ namespace CodexPetQuota
 
     public sealed class NoActivateForm : Form
     {
-        private const int WM_NCHITTEST = 0x0084;
-        private const int HTTRANSPARENT = -1;
-
         public NoActivateForm()
         {
             AutoScaleMode = AutoScaleMode.None;
         }
-
-        public int ClickThroughTop { get; set; }
 
         protected override bool ShowWithoutActivation { get { return true; } }
 
@@ -235,22 +230,6 @@ namespace CodexPetQuota
             }
         }
 
-        protected override void WndProc(ref Message message)
-        {
-            if (message.Msg == WM_NCHITTEST && ClickThroughTop > 0)
-            {
-                long packedPoint = message.LParam.ToInt64();
-                int screenX = unchecked((short)(packedPoint & 0xffff));
-                int screenY = unchecked((short)((packedPoint >> 16) & 0xffff));
-                Point clientPoint = PointToClient(new Point(screenX, screenY));
-                if (clientPoint.Y < ClickThroughTop)
-                {
-                    message.Result = new IntPtr(HTTRANSPARENT);
-                    return;
-                }
-            }
-            base.WndProc(ref message);
-        }
     }
 
     public sealed class QuotaBar : Control
@@ -2548,10 +2527,10 @@ function Set-PetBaseTheme {
     ([int]$definition.Width), `
     ([int]$definition.Height)
   $baseControl.ContentOffsetY = [int]$definition.ContentOffsetY
-  # The raised surface visually overlaps the pet's feet. Let mouse input pass
-  # through that surface so the official pet keeps its native drag behavior;
-  # only the lower metrics face remains interactive for opening the panel.
-  $petBase.ClickThroughTop = [math]::Max(
+  # The raised surface visually overlaps the pet's native drag area. Pet Dock
+  # treats this part as a shared drag handle and moves the official pet window;
+  # the lower metrics face remains a normal click target.
+  $script:petDragTop = [math]::Max(
     0,
     [math]::Min(
       [int]$petBase.Height,
@@ -2737,6 +2716,7 @@ $probeFailureCount = 0
 $probeFailureBaseSeconds = 900
 $startedAt = [DateTime]::Now
 $currentPetWindow = $null
+$petWindowDrag = $null
 $lastPetVisibleAt = [DateTime]::MinValue
 $lastPetSearchAt = [DateTime]::MinValue
 $officialCodexProcessIds = $null
@@ -3243,8 +3223,118 @@ function Toggle-QuotaPanel {
   }
 }
 
-$petBase.Add_Click({ Toggle-QuotaPanel })
-$baseControl.Add_Click({ Toggle-QuotaPanel })
+function Start-PetWindowDrag {
+  param($sender, $eventArgs)
+
+  if (
+    $eventArgs.Button -ne [System.Windows.Forms.MouseButtons]::Left -or
+    [int]$eventArgs.Y -ge [int]$script:petDragTop -or
+    $null -eq $script:currentPetWindow -or
+    -not $script:currentPetWindow.Visible
+  ) {
+    return
+  }
+  $petHandle = [IntPtr]$script:currentPetWindow.Handle
+  if (-not [CodexPetQuota.NativeMethods]::IsWindow($petHandle)) {
+    return
+  }
+
+  $petRect = New-Object CodexPetQuota.NativeMethods+RECT
+  if (-not [CodexPetQuota.NativeMethods]::GetWindowRect(
+    $petHandle,
+    [ref]$petRect
+  )) {
+    return
+  }
+
+  $panel.Hide()
+  $script:petWindowDrag = [pscustomobject]@{
+    Handle = $petHandle
+    CursorX = [System.Windows.Forms.Cursor]::Position.X
+    CursorY = [System.Windows.Forms.Cursor]::Position.Y
+    WindowLeft = [int]$petRect.Left
+    WindowTop = [int]$petRect.Top
+    WindowWidth = [int]($petRect.Right - $petRect.Left)
+    WindowHeight = [int]($petRect.Bottom - $petRect.Top)
+    Moved = $false
+  }
+  $baseControl.Capture = $true
+}
+
+function Move-PetWindowDrag {
+  param($sender, $eventArgs)
+
+  if (
+    $null -eq $script:petWindowDrag -or
+    $eventArgs.Button -ne [System.Windows.Forms.MouseButtons]::Left
+  ) {
+    return
+  }
+  $cursor = [System.Windows.Forms.Cursor]::Position
+  $deltaX = [int]$cursor.X - [int]$script:petWindowDrag.CursorX
+  $deltaY = [int]$cursor.Y - [int]$script:petWindowDrag.CursorY
+  if ($deltaX -eq 0 -and $deltaY -eq 0) {
+    return
+  }
+
+  $newLeft = [int]$script:petWindowDrag.WindowLeft + $deltaX
+  $newTop = [int]$script:petWindowDrag.WindowTop + $deltaY
+  [void][CodexPetQuota.NativeMethods]::SetWindowPos(
+    [IntPtr]$script:petWindowDrag.Handle,
+    [IntPtr]::Zero,
+    $newLeft,
+    $newTop,
+    0,
+    0,
+    0x0015
+  )
+  $script:petWindowDrag.Moved = $true
+  Extend-FastTracking -Milliseconds 1200
+}
+
+function Stop-PetWindowDrag {
+  if ($null -eq $script:petWindowDrag) {
+    return
+  }
+  $script:petWindowDrag = $null
+  $baseControl.Capture = $false
+}
+
+function Complete-PetBaseMouseUp {
+  param($sender, $eventArgs)
+
+  if ($eventArgs.Button -ne [System.Windows.Forms.MouseButtons]::Left) {
+    return
+  }
+  if ($null -ne $script:petWindowDrag) {
+    Stop-PetWindowDrag
+    return
+  }
+  if ([int]$eventArgs.Y -ge [int]$script:petDragTop) {
+    Toggle-QuotaPanel
+  }
+}
+
+$baseControl.Add_MouseDown({ Start-PetWindowDrag $this $_ })
+$baseControl.Add_MouseMove({
+  if ([int]$_.Y -lt [int]$script:petDragTop) {
+    $baseControl.Cursor = [System.Windows.Forms.Cursors]::SizeAll
+  } else {
+    $baseControl.Cursor = [System.Windows.Forms.Cursors]::Hand
+  }
+  Move-PetWindowDrag $this $_
+})
+$baseControl.Add_MouseUp({
+  Complete-PetBaseMouseUp $this $_
+})
+$baseControl.Add_MouseCaptureChanged({
+  if (-not $baseControl.Capture) {
+    Stop-PetWindowDrag
+  }
+})
+$baseControl.Add_MouseLeave({
+  $baseControl.Cursor = [System.Windows.Forms.Cursors]::Hand
+})
 
 $trayMenu = New-Object System.Windows.Forms.ContextMenuStrip
 $statusMenuItem = New-Object System.Windows.Forms.ToolStripMenuItem
@@ -3258,21 +3348,6 @@ $refreshMenuItem = $trayMenu.Items.Add((Get-UiText -Key 'Refresh'))
 $themeMenuItem = New-Object System.Windows.Forms.ToolStripMenuItem
 $themeMenuItem.Text = Get-UiText -Key 'BaseTheme'
 [void]$trayMenu.Items.Add($themeMenuItem)
-
-$openCustomThemesItem = New-Object System.Windows.Forms.ToolStripMenuItem
-$openCustomThemesItem.Text = Get-UiText -Key 'OpenThemesFolder'
-$openCustomThemesItem.Add_Click({
-  try {
-    [void][System.IO.Directory]::CreateDirectory($customThemesDirectory)
-    Start-Process `
-      -FilePath (Join-Path $env:SystemRoot 'explorer.exe') `
-      -ArgumentList ('"' + $customThemesDirectory + '"')
-  } catch {
-    Write-SidecarLog -Message (
-      'Could not open custom themes folder: ' + $_.Exception.Message
-    )
-  }
-})
 
 $createWithCodexItem = New-Object System.Windows.Forms.ToolStripMenuItem
 $createWithCodexItem.Text = Get-UiText -Key 'CreateWithCodex'
@@ -3291,47 +3366,6 @@ $createWithCodexItem.Add_Click({
     Write-SidecarLog -Message (
       'Could not open the Codex theme creator: ' +
       $_.Exception.Message
-    )
-    [void][System.Windows.Forms.MessageBox]::Show(
-      $_.Exception.Message,
-      'Codex Pet Dock',
-      [System.Windows.Forms.MessageBoxButtons]::OK,
-      [System.Windows.Forms.MessageBoxIcon]::Warning
-    )
-  }
-})
-
-$createCustomThemeItem = New-Object System.Windows.Forms.ToolStripMenuItem
-$createCustomThemeItem.Text = Get-UiText -Key 'CreateTheme'
-$createCustomThemeItem.Add_Click({
-  try {
-    $studioScript = Join-Path $PSScriptRoot 'Start-CodexPetThemeStudio.ps1'
-    if (-not (Test-Path -LiteralPath $studioScript)) {
-      throw 'Theme Studio is missing from this installation.'
-    }
-    $studioArguments = @(
-      '-NoProfile',
-      '-WindowStyle',
-      'Hidden',
-      '-ExecutionPolicy',
-      'RemoteSigned',
-      '-File',
-      $studioScript,
-      '-Language',
-      $script:uiLanguage
-    )
-    if (-not [string]::IsNullOrWhiteSpace($ConfigDirectoryOverride)) {
-      $studioArguments += @(
-        '-ConfigDirectoryOverride',
-        $configDirectory
-      )
-    }
-    Start-Process `
-      -FilePath (Join-Path $PSHOME 'powershell.exe') `
-      -ArgumentList $studioArguments
-  } catch {
-    Write-SidecarLog -Message (
-      'Could not open Theme Studio: ' + $_.Exception.Message
     )
     [void][System.Windows.Forms.MessageBox]::Show(
       $_.Exception.Message,
@@ -3380,8 +3414,6 @@ function Rebuild-ThemeMenu {
     (New-Object System.Windows.Forms.ToolStripSeparator)
   )
   [void]$themeMenuItem.DropDownItems.Add($reloadCustomThemesItem)
-  [void]$themeMenuItem.DropDownItems.Add($openCustomThemesItem)
-  [void]$themeMenuItem.DropDownItems.Add($createCustomThemeItem)
 }
 
 function Invoke-CustomThemeReload {
@@ -3440,9 +3472,7 @@ $chineseLanguageItem.Checked = ($script:uiLanguage -eq 'zh-CN')
 function Apply-UiLanguage {
   $refreshMenuItem.Text = Get-UiText -Key 'Refresh'
   $themeMenuItem.Text = Get-UiText -Key 'BaseTheme'
-  $openCustomThemesItem.Text = Get-UiText -Key 'OpenThemesFolder'
   $createWithCodexItem.Text = Get-UiText -Key 'CreateWithCodex'
-  $createCustomThemeItem.Text = Get-UiText -Key 'CreateTheme'
   $reloadCustomThemesItem.Text = Get-UiText -Key 'ReloadThemes'
   $languageMenuItem.Text = Get-UiText -Key 'Language'
   $englishLanguageItem.Text = Get-UiText -Key 'English'
@@ -3515,10 +3545,10 @@ if ($ThemeSwitchDiagnostics) {
         theme = [string]$diagnosticThemeId
         switched = [bool]$switched
         persisted = ([string]$savedThemeId -eq [string]$diagnosticThemeId)
-        clickThroughTop = [int]$petBase.ClickThroughTop
-        dragSurfacePassesThrough = (
-          [int]$petBase.ClickThroughTop -gt 0 -and
-          [int]$petBase.ClickThroughTop -lt [int]$baseControl.MetricsBottom
+        dragHandleTop = [int]$script:petDragTop
+        dragDelegatesToPet = (
+          [int]$script:petDragTop -gt 0 -and
+          [int]$script:petDragTop -lt [int]$baseControl.MetricsBottom
         )
         metricsBottom = [int]$baseControl.MetricsBottom
         height = [int]$petBase.Height
@@ -3549,7 +3579,7 @@ if ($ThemeSwitchDiagnostics) {
             -not $_.fontFits -or
             [double]$_.alphaCoverage -lt 0.95 -or
             -not $_.contactFits -or
-            -not $_.dragSurfacePassesThrough
+            -not $_.dragDelegatesToPet
           }
       ).Count -eq 0)
       themes = @($themeResults)
@@ -3689,7 +3719,7 @@ $timer.Add_Tick({
       )
     } catch {
       Write-SidecarLog -Message (
-        'Theme Studio reload recovered: ' + $_.Exception.Message
+        'Custom theme reload recovered: ' + $_.Exception.Message
       )
     }
   }

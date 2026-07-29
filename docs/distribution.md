@@ -39,7 +39,7 @@ Dream Skin 当前为 Windows 用户提供 `Setup.exe`、托盘操作、主题切
 额度 JSONL app-server 客户端和 Token 聚合已经迁入
 `CodexPetProbe.exe`，最终用户不再需要 Node.js。下一阶段继续将 PowerShell
 中的窗口、UIA 与托盘逻辑迁入 `CodexPetDock.exe`，消除常驻 PowerShell
-运行时；安装和 Theme Studio 仍可使用系统自带 PowerShell。
+运行时；安装和 Codex 主题创建入口仍可使用系统自带 PowerShell。
 
 不要把 Node 或 PowerShell 运行时静默打包进安装器作为长期方案；那会增加体积、
 安全软件误报和维护面。
@@ -169,7 +169,7 @@ Preview 已支持本地、纯素材主题目录：
 ### Beta 0.3
 
 - 托盘连接状态、首次启动提示与重复启动唤醒；
-- Theme Studio、自定义主题安全校验与热重载；
+- Codex Skill、自定义主题安全校验与热重载；
 - 额度数据新鲜度和本机 Token 语义；
 - 可重复执行的主题、交互、功耗和隐私回归。
 

@@ -26,25 +26,14 @@ subtle cyan glow. Keep it refined rather than ornate.
 This path uses the Codex application the user already has. It does not require
 an API key and does not send a theme to a separate Pet Dock service.
 
-## Advanced manual tuning
-
-Choose `Base theme` → `Advanced: tune a base manually...` when a transparent
-PNG already exists and only exact geometry needs adjustment. Import the PNG,
-align the dashed contact surface and metric geometry, then choose
-`Save & reload`.
-
-For manual authoring, choose `Open custom themes folder`, create one
-subdirectory, and place `theme.json` plus one PNG inside it. Choose
-`Reload custom themes` after editing; restarting the application is not required.
-
 If the Codex deep link is unavailable, copy the ready-made task prompt in
 [`vibe-custom-theme-prompt.md`](vibe-custom-theme-prompt.md) into Codex,
 Claude Code, or another local coding agent. It instructs the agent to create,
 validate, install, and hot-reload one data-only theme without modifying Codex
 or Pet Dock source code.
 
-The application creates `theme.example.json` in the custom theme root. Copy its
-contents into the new subdirectory as `theme.json`.
+The application creates `theme.example.json` in the custom theme root so Codex
+can use the exact installed schema while generating and validating a theme.
 
 ```text
 %LOCALAPPDATA%\CodexPetDock\themes\

@@ -144,8 +144,7 @@ Pet Dock 不依赖某一只宠物的图片或动作。用户在 Codex 中切换�
 
 界面默认使用英文。右键托盘图标，选择
 `Language` → `简体中文` 可以即时切换为中文，无需重启。选择结果与当前底座
-主题一起保存到 `%LOCALAPPDATA%\CodexPetDock\config.json`，Theme Studio
-会自动使用相同语言。
+主题一起保存到 `%LOCALAPPDATA%\CodexPetDock\config.json`。
 
 ## 切换内置底座
 
@@ -189,13 +188,6 @@ Codex 会先询问配色、名称以及是否已有透明 PNG 或参考图，然
 
 如果 Codex 深链不可用，也可以手工复制
 [`Vibe Coding 任务模板`](docs/vibe-custom-theme-prompt.md)。
-
-已经有素材、只想精确调坐标时，选择
-`Base theme` → `Advanced: tune a base manually...` 打开 Theme Studio。它是高级
-微调工具，不再是普通用户创建主题的主入口。
-
-熟悉配置文件的用户也可以选择 `Open custom themes folder`，手动建立包含 `theme.json`
-与透明 PNG 的主题目录，再点击 `Reload custom themes`。
 
 加载器只接受固定白名单字段和同目录 PNG；脚本、CSS、JavaScript、命令、
 URL、绝对路径、目录穿越、符号链接、超大文件与不安全尺寸都会被拒绝。
