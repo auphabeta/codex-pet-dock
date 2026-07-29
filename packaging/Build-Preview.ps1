@@ -30,7 +30,7 @@ foreach ($target in @($stagingRoot, $zipPath, $checksumPath)) {
 }
 [void][System.IO.Directory]::CreateDirectory($stagingRoot)
 
-foreach ($directory in @('src', 'docs', 'packaging')) {
+foreach ($directory in @('src', 'docs', 'packaging', '.agents')) {
   Copy-Item `
     -LiteralPath (Join-Path $projectRoot $directory) `
     -Destination $stagingRoot `

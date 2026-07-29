@@ -49,7 +49,9 @@ function Assert-PreviewPrerequisites {
   foreach ($relativePath in @(
     'CodexPetDock.vbs',
     'src\Start-CodexPetQuota.ps1',
+    'src\Start-CodexPetThemeCreator.ps1',
     'src\native\CodexPetProbe.exe',
+    '.agents\skills\codex-pet-dock-theme\SKILL.md',
     'assets\branding\codex-pet-dock.ico'
   )) {
     $sourcePath = Join-Path $sourceRoot $relativePath
@@ -116,7 +118,7 @@ foreach ($obsoleteRelativePath in @(
   }
 }
 
-foreach ($directory in @('src', 'assets', 'docs')) {
+foreach ($directory in @('src', 'assets', 'docs', '.agents')) {
   Copy-Item `
     -LiteralPath (Join-Path $sourceRoot $directory) `
     -Destination $installRoot `

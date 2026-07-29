@@ -9,6 +9,12 @@ $sidecarScript = Join-Path $projectRoot 'src\Start-CodexPetQuota.ps1'
 $themeStudioScript = Join-Path `
   $projectRoot `
   'src\Start-CodexPetThemeStudio.ps1'
+$themeCreatorScript = Join-Path `
+  $projectRoot `
+  'src\Start-CodexPetThemeCreator.ps1'
+$themeSkillPath = Join-Path `
+  $projectRoot `
+  '.agents\skills\codex-pet-dock-theme\SKILL.md'
 $probeScript = Join-Path $projectRoot 'src\native\CodexPetProbe.exe'
 $probeSourcePath = Join-Path $projectRoot 'src\native\CodexPetProbe.cs'
 $nativeBuildScript = Join-Path $projectRoot 'packaging\Build-Native.ps1'
@@ -586,13 +592,69 @@ try {
 }
 Add-TestResult `
   -Area 'Custom themes' `
-  -Name 'Theme Studio and hot reload entry points exist' `
+  -Name 'AI creator, advanced studio, and hot reload entry points exist' `
   -Passed (
     (Test-Path -LiteralPath $themeStudioScript) -and
+    (Test-Path -LiteralPath $themeCreatorScript) -and
+    (Test-Path -LiteralPath $themeSkillPath) -and
+    $sidecarSource -match 'Start-CodexPetThemeCreator\.ps1' -and
     $sidecarSource -match 'Start-CodexPetThemeStudio\.ps1' -and
     $sidecarSource -match 'Local\\CodexPetDock\.ReloadThemes' -and
+    $englishLocaleSource -match 'Create with Codex' -and
+    $englishLocaleSource -match 'Advanced: tune a base manually' -and
     $englishLocaleSource -match 'Reload custom themes'
   )
+$themeSkillSource = if (Test-Path -LiteralPath $themeSkillPath) {
+  Get-Content -Raw -Encoding UTF8 -LiteralPath $themeSkillPath
+} else {
+  ''
+}
+Add-TestResult `
+  -Area 'Custom themes' `
+  -Name 'Bundled Codex skill enforces safe generation and validation' `
+  -Passed (
+    $themeSkillSource -match 'ThemeSwitchDiagnostics' -and
+    $themeSkillSource -match 'drag-surface pass-through' -and
+    $themeSkillSource -match '%LOCALAPPDATA%\\CodexPetDock\\themes' -and
+    $themeSkillSource -match 'app\.asar' -and
+    $themeSkillSource -match 'Do not silently overwrite' -and
+    $themeSkillSource -match 'platform\.png' -and
+    $themeSkillSource -match 'theme\.json'
+  )
+try {
+  foreach ($creatorLanguage in @('en-US', 'zh-CN')) {
+    $creatorDiagnosticsOutput = & powershell.exe `
+      -NoProfile `
+      -ExecutionPolicy RemoteSigned `
+      -File $themeCreatorScript `
+      -Diagnostics `
+      -Language $creatorLanguage 2>&1
+    $creatorDiagnosticsExit = $LASTEXITCODE
+    $creatorDiagnostics = (
+      ($creatorDiagnosticsOutput -join [Environment]::NewLine) |
+        ConvertFrom-Json
+    )
+    Add-TestResult `
+      -Area 'Custom themes' `
+      -Name ('Codex creator deep link works in ' + $creatorLanguage) `
+      -Passed (
+        $creatorDiagnosticsExit -eq 0 -and
+        $creatorDiagnostics.ok -and
+        [string]$creatorDiagnostics.language -eq $creatorLanguage -and
+        [string]$creatorDiagnostics.deepLinkScheme -eq 'codex' -and
+        $creatorDiagnostics.promptEncoded -and
+        $creatorDiagnostics.workspaceEncoded -and
+        [string]$creatorDiagnostics.prompt -match
+          '^\$codex-pet-dock-theme'
+      )
+  }
+} catch {
+  Add-TestResult `
+    -Area 'Custom themes' `
+    -Name 'Codex creator deep link diagnostics' `
+    -Passed $false `
+    -Detail $_.Exception.Message
+}
 $vibePromptPath = Join-Path `
   $projectRoot `
   'docs\vibe-custom-theme-prompt.md'
@@ -758,6 +820,18 @@ $previewBuildSource = Get-Content `
   -LiteralPath $previewBuildPath
 Add-TestResult `
   -Area 'Packaging' `
+  -Name 'Release and installer include the bundled Codex theme skill' `
+  -Passed (
+    $installerSource -match "'src\\Start-CodexPetThemeCreator\.ps1'" -and
+    $installerSource -match
+      "'\.agents\\skills\\codex-pet-dock-theme\\SKILL\.md'" -and
+    $installerSource -match
+      "@\('src', 'assets', 'docs', '\.agents'\)" -and
+    $previewBuildSource -match
+      "@\('src', 'docs', 'packaging', '\.agents'\)"
+  )
+Add-TestResult `
+  -Area 'Packaging' `
   -Name 'README autoplays an optimized GIF excluded from the release package' `
   -Passed (
     (Test-Path -LiteralPath $demoVideoPath) -and
@@ -877,7 +951,8 @@ try {
         -not $_.controlSizeFits -or
         -not $_.fontFits -or
         [double]$_.alphaCoverage -lt 0.95 -or
-        -not $_.contactFits
+        -not $_.contactFits -or
+        -not $_.dragSurfacePassesThrough
       }
   )
   $loadedCustomTheme = @(
@@ -1301,6 +1376,46 @@ public static class CodexPetDockTestNative
         $baseHandleBefore,
         [ref]$baseRectBefore
       )
+
+      $hitTestScreenX = [int](
+        $baseRectBefore.Left +
+        (($baseRectBefore.Right - $baseRectBefore.Left) / 2)
+      )
+      $topHitTestScreenY = [int]($baseRectBefore.Top + 5)
+      $lowerHitTestScreenY = [int]($baseRectBefore.Top + 55)
+      $topHitTestPoint = [IntPtr](
+        (($topHitTestScreenY -band 0xffff) -shl 16) -bor
+        ($hitTestScreenX -band 0xffff)
+      )
+      $lowerHitTestPoint = [IntPtr](
+        (($lowerHitTestScreenY -band 0xffff) -shl 16) -bor
+        ($hitTestScreenX -band 0xffff)
+      )
+      $topHitTest = [CodexPetDockTestNative]::SendMessage(
+        $baseHandleBefore,
+        0x0084,
+        [IntPtr]::Zero,
+        $topHitTestPoint
+      ).ToInt64()
+      $lowerHitTest = [CodexPetDockTestNative]::SendMessage(
+        $baseHandleBefore,
+        0x0084,
+        [IntPtr]::Zero,
+        $lowerHitTestPoint
+      ).ToInt64()
+      Add-TestResult `
+        -Area 'Interaction' `
+        -Name 'Raised base surface passes dragging through to the pet' `
+        -Passed (
+          $topHitTest -eq -1 -and
+          $lowerHitTest -ne -1
+        ) `
+        -Detail (
+          'top=' +
+          [string]$topHitTest +
+          ', metrics=' +
+          [string]$lowerHitTest
+        )
 
       $childHandle = [CodexPetDockTestNative]::GetWindow(
         $baseHandleBefore,

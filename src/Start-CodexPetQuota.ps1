@@ -212,10 +212,15 @@ namespace CodexPetQuota
 
     public sealed class NoActivateForm : Form
     {
+        private const int WM_NCHITTEST = 0x0084;
+        private const int HTTRANSPARENT = -1;
+
         public NoActivateForm()
         {
             AutoScaleMode = AutoScaleMode.None;
         }
+
+        public int ClickThroughTop { get; set; }
 
         protected override bool ShowWithoutActivation { get { return true; } }
 
@@ -228,6 +233,23 @@ namespace CodexPetQuota
                 parameters.ExStyle |= 0x00000080;
                 return parameters;
             }
+        }
+
+        protected override void WndProc(ref Message message)
+        {
+            if (message.Msg == WM_NCHITTEST && ClickThroughTop > 0)
+            {
+                long packedPoint = message.LParam.ToInt64();
+                int screenX = unchecked((short)(packedPoint & 0xffff));
+                int screenY = unchecked((short)((packedPoint >> 16) & 0xffff));
+                Point clientPoint = PointToClient(new Point(screenX, screenY));
+                if (clientPoint.Y < ClickThroughTop)
+                {
+                    message.Result = new IntPtr(HTTRANSPARENT);
+                    return;
+                }
+            }
+            base.WndProc(ref message);
         }
     }
 
@@ -2526,6 +2548,16 @@ function Set-PetBaseTheme {
     ([int]$definition.Width), `
     ([int]$definition.Height)
   $baseControl.ContentOffsetY = [int]$definition.ContentOffsetY
+  # The raised surface visually overlaps the pet's feet. Let mouse input pass
+  # through that surface so the official pet keeps its native drag behavior;
+  # only the lower metrics face remains interactive for opening the panel.
+  $petBase.ClickThroughTop = [math]::Max(
+    0,
+    [math]::Min(
+      [int]$petBase.Height,
+      31 + [int]$definition.ContentOffsetY
+    )
+  )
   $baseControl.MetricsScrimOpacity = if (
     $null -ne $definition.MetricsScrimOpacity
   ) {
@@ -3242,6 +3274,33 @@ $openCustomThemesItem.Add_Click({
   }
 })
 
+$createWithCodexItem = New-Object System.Windows.Forms.ToolStripMenuItem
+$createWithCodexItem.Text = Get-UiText -Key 'CreateWithCodex'
+$createWithCodexItem.Add_Click({
+  try {
+    $creatorScript = Join-Path `
+      $PSScriptRoot `
+      'Start-CodexPetThemeCreator.ps1'
+    if (-not (Test-Path -LiteralPath $creatorScript)) {
+      throw 'The Codex theme creator is missing from this installation.'
+    }
+    & $creatorScript `
+      -Language $script:uiLanguage `
+      -ProjectRootOverride $projectRoot
+  } catch {
+    Write-SidecarLog -Message (
+      'Could not open the Codex theme creator: ' +
+      $_.Exception.Message
+    )
+    [void][System.Windows.Forms.MessageBox]::Show(
+      $_.Exception.Message,
+      'Codex Pet Dock',
+      [System.Windows.Forms.MessageBoxButtons]::OK,
+      [System.Windows.Forms.MessageBoxIcon]::Warning
+    )
+  }
+})
+
 $createCustomThemeItem = New-Object System.Windows.Forms.ToolStripMenuItem
 $createCustomThemeItem.Text = Get-UiText -Key 'CreateTheme'
 $createCustomThemeItem.Add_Click({
@@ -3316,9 +3375,13 @@ function Rebuild-ThemeMenu {
   [void]$themeMenuItem.DropDownItems.Add(
     (New-Object System.Windows.Forms.ToolStripSeparator)
   )
-  [void]$themeMenuItem.DropDownItems.Add($createCustomThemeItem)
+  [void]$themeMenuItem.DropDownItems.Add($createWithCodexItem)
+  [void]$themeMenuItem.DropDownItems.Add(
+    (New-Object System.Windows.Forms.ToolStripSeparator)
+  )
   [void]$themeMenuItem.DropDownItems.Add($reloadCustomThemesItem)
   [void]$themeMenuItem.DropDownItems.Add($openCustomThemesItem)
+  [void]$themeMenuItem.DropDownItems.Add($createCustomThemeItem)
 }
 
 function Invoke-CustomThemeReload {
@@ -3378,6 +3441,7 @@ function Apply-UiLanguage {
   $refreshMenuItem.Text = Get-UiText -Key 'Refresh'
   $themeMenuItem.Text = Get-UiText -Key 'BaseTheme'
   $openCustomThemesItem.Text = Get-UiText -Key 'OpenThemesFolder'
+  $createWithCodexItem.Text = Get-UiText -Key 'CreateWithCodex'
   $createCustomThemeItem.Text = Get-UiText -Key 'CreateTheme'
   $reloadCustomThemesItem.Text = Get-UiText -Key 'ReloadThemes'
   $languageMenuItem.Text = Get-UiText -Key 'Language'
@@ -3451,6 +3515,11 @@ if ($ThemeSwitchDiagnostics) {
         theme = [string]$diagnosticThemeId
         switched = [bool]$switched
         persisted = ([string]$savedThemeId -eq [string]$diagnosticThemeId)
+        clickThroughTop = [int]$petBase.ClickThroughTop
+        dragSurfacePassesThrough = (
+          [int]$petBase.ClickThroughTop -gt 0 -and
+          [int]$petBase.ClickThroughTop -lt [int]$baseControl.MetricsBottom
+        )
         metricsBottom = [int]$baseControl.MetricsBottom
         height = [int]$petBase.Height
         layoutFits = (
@@ -3479,7 +3548,8 @@ if ($ThemeSwitchDiagnostics) {
             -not $_.controlSizeFits -or
             -not $_.fontFits -or
             [double]$_.alphaCoverage -lt 0.95 -or
-            -not $_.contactFits
+            -not $_.contactFits -or
+            -not $_.dragSurfacePassesThrough
           }
       ).Count -eq 0)
       themes = @($themeResults)

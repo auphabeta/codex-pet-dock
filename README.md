@@ -131,13 +131,14 @@ Pet Dock 不依赖某一只宠物的图片或动作。用户在 Codex 中切换�
 | 菜单 | 作用 |
 |---|---|
 | `Refresh` | 立即刷新额度和本周 Token |
-| `Base theme` | 切换内置或自定义底座 |
+| `Base theme` | 切换底座，或让 Codex 创建新底座 |
 | `Language` | 在英文和简体中文之间即时切换 |
 | `Launch at sign-in` | 登录 Windows 后在后台等待宠物出现 |
 | `Exit` | 关闭 Pet Dock |
 
-宠物移动时底座会跟随；切换宠物时自动重新贴合；宠物关闭或隐藏后，底座和详情卡
-也会一起隐藏。重复启动不会创建第二块底座，只会提示当前运行状态。
+宠物移动时底座会跟随，底座上沿会把拖动操作交还给宠物；切换宠物时自动重新贴合；
+宠物关闭或隐藏后，底座和详情卡也会一起隐藏。重复启动不会创建第二块底座，只会
+提示当前运行状态。
 
 ## 界面语言
 
@@ -162,14 +163,20 @@ Pet Dock 不依赖某一只宠物的图片或动作。用户在 Codex 中切换�
 
 选择会自动保存，升级或重新安装 Pet Dock 后不会丢失。
 
-## 创建自己的底座
+## 用一句话创建自己的底座
 
-项目支持本地、纯数据自定义底座，有两种方式：
+不用研究图片尺寸、坐标或 JSON。右键 Pet Dock 托盘图标，选择
+`Base theme` → `Create with Codex...`（中文界面为
+`底座主题` → `用 Codex 创建底座…`）。
 
-### 方式一：交给编码助手（推荐）
+Pet Dock 会打开一个已经带好 `$codex-pet-dock-theme` 技能和安全边界的新 Codex
+对话。直接描述想法即可，例如：
 
-不用自己研究尺寸或 JSON。复制项目准备好的完整任务提示词，填一句风格描述，再交给
-Codex、Claude Code 等能够读写本机文件的编码助手。它会在安全边界内完成：
+```text
+做一个淡金色东方祥云底座，轻盈、帅气、有层次，不要俗艳。
+```
+
+Codex 会先询问配色、名称以及是否已有透明 PNG 或参考图，然后完成：
 
 1. 生成或检查透明底座 PNG；
 2. 创建白名单格式的 `theme.json`；
@@ -177,24 +184,15 @@ Codex、Claude Code 等能够读写本机文件的编码助手。它会在安全
 4. 在临时配置中运行布局和切换诊断；
 5. 通过后安装到本机主题目录并请求热重载。
 
-例如只需把提示词中的设定改成：
+整个流程只会创建一张 PNG 和一份 JSON，不会修改 Codex、`app.asar`、官方宠物
+或 Pet Dock 源码。已有主题不会被静默覆盖。
 
-```text
-主题概念：淡金色东方祥云，轻盈、帅气、有层次，不要俗艳
-主题显示名：Golden Nimbus
-稳定主题 ID：your-name.golden-nimbus
-现有透明 PNG：无
-```
+如果 Codex 深链不可用，也可以手工复制
+[`Vibe Coding 任务模板`](docs/vibe-custom-theme-prompt.md)。
 
-完整可复制提示词见
-[`docs/vibe-custom-theme-prompt.md`](docs/vibe-custom-theme-prompt.md)。
-提示词明确禁止修改 Codex、`app.asar` 和 Pet Dock 源码，也禁止主题携带脚本。
-
-### 方式二：Theme Studio 手工调整
-
-选择 `Base theme` → `Create or edit custom base...` 打开 Theme Studio，导入一张
-透明 PNG，在实时预览中调整宠物落脚线、尺寸、文字位置和颜色，然后
-`Save & reload`，无需重启 Pet Dock。
+已经有素材、只想精确调坐标时，选择
+`Base theme` → `Advanced: tune a base manually...` 打开 Theme Studio。它是高级
+微调工具，不再是普通用户创建主题的主入口。
 
 熟悉配置文件的用户也可以选择 `Open custom themes folder`，手动建立包含 `theme.json`
 与透明 PNG 的主题目录，再点击 `Reload custom themes`。

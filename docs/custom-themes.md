@@ -8,17 +8,36 @@ code and cannot modify Codex.
 For most users:
 
 1. Open the tray menu.
-2. Choose `Base theme` → `Create or edit custom base...`.
-3. Browse to a transparent PNG.
-4. Adjust the dashed contact surface and metric geometry in the live preview.
-5. Choose `Save & reload`.
+2. Choose `Base theme` → `Create with Codex...`.
+3. Describe the visual concept in the new Codex conversation.
+4. Answer the short questions about colors, name, and any existing transparent
+   PNG or reference image.
+5. Let the bundled `$codex-pet-dock-theme` skill generate, validate, install,
+   and hot-reload the data-only theme.
 6. Select `Custom - <theme name>` from `Base theme`.
+
+For example:
+
+```text
+Create a light golden Chinese cloud base with elegant layered shapes and a
+subtle cyan glow. Keep it refined rather than ornate.
+```
+
+This path uses the Codex application the user already has. It does not require
+an API key and does not send a theme to a separate Pet Dock service.
+
+## Advanced manual tuning
+
+Choose `Base theme` → `Advanced: tune a base manually...` when a transparent
+PNG already exists and only exact geometry needs adjustment. Import the PNG,
+align the dashed contact surface and metric geometry, then choose
+`Save & reload`.
 
 For manual authoring, choose `Open custom themes folder`, create one
 subdirectory, and place `theme.json` plus one PNG inside it. Choose
 `Reload custom themes` after editing; restarting the application is not required.
 
-Prefer Vibe Coding? Copy the ready-made task prompt in
+If the Codex deep link is unavailable, copy the ready-made task prompt in
 [`vibe-custom-theme-prompt.md`](vibe-custom-theme-prompt.md) into Codex,
 Claude Code, or another local coding agent. It instructs the agent to create,
 validate, install, and hot-reload one data-only theme without modifying Codex
