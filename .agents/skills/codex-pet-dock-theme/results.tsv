@@ -1,0 +1,3 @@
+timestamp	commit	skill	old_score	new_score	status	dimension	note	eval_mode
+2026-07-29T18:00:00+08:00	f6ac9a5	codex-pet-dock-theme	-	74.3	baseline	failure/checkpoints	with-skill 8.7/10 vs no-skill 5.0/10; runtime_warn=0	full_test
+2026-07-29T18:26:14+08:00	b403449	codex-pet-dock-theme	74.3	97.4	keep	failure/checkpoints	Added explicit checkpoints, alpha>=0.95 recovery, three-round gate, scoped reload/visual/restart verification; ratchet KEEP 90%; regression 97/97	full_test
