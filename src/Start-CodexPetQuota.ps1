@@ -3590,22 +3590,34 @@ function Complete-PetBaseMouseUp {
 $baseControl.Add_MouseDown({ Start-PetWindowDrag $this $_ })
 $baseControl.Add_MouseMove({
   if ([int]$_.Y -lt [int]$script:petDragTop) {
-    $baseControl.Cursor = [System.Windows.Forms.Cursors]::SizeAll
+    $baseControl.Cursor = [System.Windows.Forms.Cursors]::Arrow
   } else {
     $baseControl.Cursor = [System.Windows.Forms.Cursors]::Hand
   }
   Move-PetWindowDrag $this $_
+  if (
+    $null -ne $script:petWindowDrag -and
+    $script:petWindowDrag.Moved
+  ) {
+    $baseControl.Cursor = [System.Windows.Forms.Cursors]::SizeAll
+  }
 })
 $baseControl.Add_MouseUp({
   Complete-PetBaseMouseUp $this $_
+  if ([int]$_.Y -lt [int]$script:petDragTop) {
+    $baseControl.Cursor = [System.Windows.Forms.Cursors]::Arrow
+  } else {
+    $baseControl.Cursor = [System.Windows.Forms.Cursors]::Hand
+  }
 })
 $baseControl.Add_MouseCaptureChanged({
   if (-not $baseControl.Capture) {
     Stop-PetWindowDrag
+    $baseControl.Cursor = [System.Windows.Forms.Cursors]::Arrow
   }
 })
 $baseControl.Add_MouseLeave({
-  $baseControl.Cursor = [System.Windows.Forms.Cursors]::Hand
+  $baseControl.Cursor = [System.Windows.Forms.Cursors]::Arrow
 })
 $trayMenu = New-Object System.Windows.Forms.ContextMenuStrip
 $statusMenuItem = New-Object System.Windows.Forms.ToolStripMenuItem
