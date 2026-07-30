@@ -2,6 +2,18 @@
 
 > 不再层层点击账户页面——让 Codex 剩余额度和本周 Token 使用量直接显示在宠物脚下。
 
+## 平台支持
+
+| 平台 | 当前状态 |
+|---|---|
+| **Windows 11 64 位** | **支持（当前 Beta 的唯一目标平台）** |
+| macOS | 暂不支持；欢迎社区沿现有数据层与主题契约实现原生版本 |
+| Linux | 暂不支持 |
+
+当前版本不是跨平台安装包：宠物定位、透明窗口、拖动、托盘和登录自启依赖
+Windows 的 UI Automation、WinForms 与系统接口。macOS 可以复用额度读取、本机
+Token 聚合和主题格式，但需要重新实现宠物窗口附着与桌面外壳。
+
 ## 30 秒看懂 Codex Pet Dock
 
 <p align="center">
@@ -98,7 +110,7 @@ Pet Dock 不依赖某一只宠物的图片或动作。用户在 Codex 中切换�
 
 ## 下载与安装
 
-当前 Beta 支持 64 位 Windows 11，需要：
+当前 Beta **仅支持 64 位 Windows 11**，需要：
 
 - 已安装并登录 Codex 桌面客户端；
 - Codex 宠物功能可以正常打开。
@@ -106,7 +118,11 @@ Pet Dock 不依赖某一只宠物的图片或动作。用户在 Codex 中切换�
 额度探测已内置为 `CodexPetProbe.exe`，用户不需要安装 Node.js、npm、.NET SDK
 或其他开发工具。
 
-推荐安装：
+安装包发布状态以 [Releases](https://github.com/hjxccc/codex-pet-dock/releases)
+页面为准。如果页面暂时没有公开版本，说明 Windows Beta 安装包仍在发布前整理，
+请不要从第三方来源下载安装包。
+
+公开 Release 后，推荐按以下方式安装：
 
 1. 前往 [Releases](https://github.com/hjxccc/codex-pet-dock/releases) 下载最新的
    `CodexPetDock-Setup-*.exe`；
