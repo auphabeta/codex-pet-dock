@@ -210,7 +210,7 @@ namespace CodexPetQuota
         }
     }
 
-    public sealed class NoActivateForm : Form
+    public class NoActivateForm : Form
     {
         public NoActivateForm()
         {
@@ -230,6 +230,19 @@ namespace CodexPetQuota
             }
         }
 
+    }
+
+    public sealed class MouseTransparentForm : NoActivateForm
+    {
+        protected override CreateParams CreateParams
+        {
+            get
+            {
+                CreateParams parameters = base.CreateParams;
+                parameters.ExStyle |= 0x00000020;
+                return parameters;
+            }
+        }
     }
 
     public sealed class QuotaBar : Control
@@ -2467,7 +2480,7 @@ if ($null -ne $appIcon) {
   $petBase.Icon = $appIcon
 }
 
-$petDragSurface = New-Object CodexPetQuota.NoActivateForm
+$petDragSurface = New-Object CodexPetQuota.MouseTransparentForm
 $petDragSurface.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::None
 $petDragSurface.ShowInTaskbar = $false
 $petDragSurface.TopMost = $true
@@ -2727,6 +2740,8 @@ $probeFailureBaseSeconds = 900
 $startedAt = [DateTime]::Now
 $currentPetWindow = $null
 $petWindowDrag = $null
+$petPointerDrag = $null
+$petPointerWasDown = $false
 $lastPetVisibleAt = [DateTime]::MinValue
 $lastPetSearchAt = [DateTime]::MinValue
 $officialCodexProcessIds = $null
@@ -3350,6 +3365,122 @@ function Stop-PetWindowDrag {
   }
 }
 
+function Test-PetPointerDragPoint {
+  param($Point, $Bounds)
+
+  $left = [int]$Bounds.Left
+  $top = [int]$Bounds.Top
+  $width = [math]::Max(1, [int]$Bounds.Width)
+  $height = [math]::Max(1, [int]$Bounds.Height)
+  if (
+    [int]$Point.X -lt $left -or
+    [int]$Point.X -ge $left + $width -or
+    [int]$Point.Y -lt $top -or
+    [int]$Point.Y -ge $top + $height
+  ) {
+    return $false
+  }
+  $protectedTop = $top + [int][math]::Floor($height * 0.72)
+  $protectedHalfWidth = [math]::Max(
+    22,
+    [int][math]::Ceiling($width * 0.23)
+  )
+  $centerX = $left + [int][math]::Floor($width / 2)
+  return -not (
+    [int]$Point.Y -ge $protectedTop -and
+    [int]$Point.X -ge $centerX - $protectedHalfWidth -and
+    [int]$Point.X -le $centerX + $protectedHalfWidth
+  )
+}
+
+function Update-PetPointerDrag {
+  param(
+    [bool]$LeftButtonDown,
+    $MascotBounds
+  )
+
+  if (-not $LeftButtonDown) {
+    $script:petPointerDrag = $null
+    $script:petPointerWasDown = $false
+    return
+  }
+  if (
+    $null -eq $script:currentPetWindow -or
+    $null -eq $MascotBounds
+  ) {
+    $script:petPointerWasDown = $true
+    return
+  }
+
+  $cursor = [System.Windows.Forms.Cursor]::Position
+  if ($null -eq $script:petPointerDrag) {
+    if ($script:petPointerWasDown) {
+      return
+    }
+    $script:petPointerWasDown = $true
+    if (
+      -not (Test-PetPointerDragPoint -Point $cursor -Bounds $MascotBounds)
+    ) {
+      return
+    }
+    $petHandle = [IntPtr]$script:currentPetWindow.Handle
+    $petRect = New-Object CodexPetQuota.NativeMethods+RECT
+    if (
+      -not [CodexPetQuota.NativeMethods]::IsWindow($petHandle) -or
+      -not [CodexPetQuota.NativeMethods]::GetWindowRect(
+        $petHandle,
+        [ref]$petRect
+      )
+    ) {
+      return
+    }
+    $script:petPointerDrag = [pscustomobject]@{
+      Handle = $petHandle
+      CursorX = [int]$cursor.X
+      CursorY = [int]$cursor.Y
+      PetLeft = [int]$petRect.Left
+      PetTop = [int]$petRect.Top
+      BaseLeft = [int]$petBase.Left
+      BaseTop = [int]$petBase.Top
+      SurfaceLeft = [int]$petDragSurface.Left
+      SurfaceTop = [int]$petDragSurface.Top
+      Active = $false
+    }
+    Extend-FastTracking -Milliseconds 800
+    return
+  }
+
+  $deltaX = [int]$cursor.X - [int]$script:petPointerDrag.CursorX
+  $deltaY = [int]$cursor.Y - [int]$script:petPointerDrag.CursorY
+  if (
+    -not $script:petPointerDrag.Active -and
+    [math]::Max([math]::Abs($deltaX), [math]::Abs($deltaY)) -lt 4
+  ) {
+    return
+  }
+  $script:petPointerDrag.Active = $true
+  $panel.Hide()
+  [void][CodexPetQuota.NativeMethods]::SetWindowPos(
+    [IntPtr]$script:petPointerDrag.Handle,
+    [IntPtr]::Zero,
+    ([int]$script:petPointerDrag.PetLeft + $deltaX),
+    ([int]$script:petPointerDrag.PetTop + $deltaY),
+    0,
+    0,
+    0x0015
+  )
+  [void][CodexPetQuota.NativeMethods]::SetWindowPos(
+    $petBase.Handle,
+    [IntPtr]$script:petPointerDrag.Handle,
+    ([int]$script:petPointerDrag.BaseLeft + $deltaX),
+    ([int]$script:petPointerDrag.BaseTop + $deltaY),
+    0,
+    0,
+    0x0011
+  )
+  Extend-FastTracking -Milliseconds 1200
+}
+
 function Hide-PetDragSurface {
   if (
     $null -ne $script:petWindowDrag -and
@@ -3476,26 +3607,6 @@ $baseControl.Add_MouseCaptureChanged({
 $baseControl.Add_MouseLeave({
   $baseControl.Cursor = [System.Windows.Forms.Cursors]::Hand
 })
-$petDragSurface.Add_MouseDown({
-  Start-PetWindowDrag $this $_ -FromMascotSurface
-})
-$petDragSurface.Add_MouseMove({
-  Move-PetWindowDrag $this $_
-})
-$petDragSurface.Add_MouseUp({
-  if (
-    $_.Button -eq [System.Windows.Forms.MouseButtons]::Left -and
-    $null -ne $script:petWindowDrag
-  ) {
-    Stop-PetWindowDrag
-  }
-})
-$petDragSurface.Add_MouseCaptureChanged({
-  if (-not $petDragSurface.Capture) {
-    Stop-PetWindowDrag
-  }
-})
-
 $trayMenu = New-Object System.Windows.Forms.ContextMenuStrip
 $statusMenuItem = New-Object System.Windows.Forms.ToolStripMenuItem
 $statusMenuItem.Text = Get-UiText -Key 'StartingStatus'
@@ -3963,6 +4074,8 @@ $timer.Add_Tick({
     0
   }
   if ($nextPetHandle -ne $previousPetHandle) {
+    $script:petPointerDrag = $null
+    $script:petPointerWasDown = $true
     Hide-PetDragSurface
     Reset-PetMascotTracking -ClearLastBounds
     $script:lastBaseTargetSignature = ''
@@ -3995,6 +4108,8 @@ $timer.Add_Tick({
       -not $petTemporarilyUnavailable
     )
   ) {
+    $script:petPointerDrag = $null
+    $script:petPointerWasDown = $leftButtonCurrentlyDown
     Hide-PetDragSurface
     $petBase.Hide()
     $panel.Hide()
@@ -4040,6 +4155,9 @@ $timer.Add_Tick({
     } else {
       Hide-PetDragSurface
     }
+    Update-PetPointerDrag `
+      -LeftButtonDown $leftButtonCurrentlyDown `
+      -MascotBounds $mascotBounds
 
     if ($null -eq $mascotBounds) {
       $anchorLeft = $script:currentPetWindow.Left
