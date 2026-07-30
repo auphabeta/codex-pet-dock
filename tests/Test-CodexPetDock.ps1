@@ -1312,22 +1312,40 @@ public static class CodexPetDockTestNative
       -PassThru
 
     $visibleBefore = @()
-    for ($attempt = 0; $attempt -lt 24 -and $visibleBefore.Count -eq 0; $attempt++) {
+    $baseHandleBefore = [IntPtr]::Zero
+    for (
+      $attempt = 0;
+      $attempt -lt 24 -and $baseHandleBefore -eq [IntPtr]::Zero;
+      $attempt++
+    ) {
       Start-Sleep -Milliseconds 250
       $visibleBefore = @(
         [CodexPetDockTestNative]::VisibleWindowsForProcess(
           [uint32]$integrationProcess.Id
         )
       )
+      foreach ($candidateHandle in $visibleBefore) {
+        if (
+          [CodexPetDockTestNative]::GetWindow(
+            [IntPtr]$candidateHandle,
+            5
+          ) -ne [IntPtr]::Zero
+        ) {
+          $baseHandleBefore = [IntPtr]$candidateHandle
+          break
+        }
+      }
     }
     Add-TestResult `
       -Area 'Integration' `
-      -Name 'Dock appears for a visible pet' `
-      -Passed ($visibleBefore.Count -eq 1) `
+      -Name 'Dock and mascot drag surface appear for a visible pet' `
+      -Passed (
+        $baseHandleBefore -ne [IntPtr]::Zero -and
+        $visibleBefore.Count -eq 2
+      ) `
       -Detail ('windows=' + [string]$visibleBefore.Count)
 
-    if ($visibleBefore.Count -gt 0) {
-      $baseHandleBefore = [IntPtr]$visibleBefore[0]
+    if ($baseHandleBefore -ne [IntPtr]::Zero) {
       $baseRectBefore = New-Object CodexPetDockTestNative+RECT
       [void][CodexPetDockTestNative]::GetWindowRect(
         $baseHandleBefore,
@@ -1433,7 +1451,8 @@ public static class CodexPetDockTestNative
       $afterClick = @()
       for (
         $attempt = 0;
-        $attempt -lt 8 -and $afterClick.Count -lt 2;
+        $attempt -lt 8 -and
+        $afterClick.Count -lt ($visibleBefore.Count + 1);
         $attempt++
       ) {
         Start-Sleep -Milliseconds 250
@@ -1446,7 +1465,7 @@ public static class CodexPetDockTestNative
       Add-TestResult `
         -Area 'Interaction' `
         -Name 'Clicking Dock opens the detail panel' `
-        -Passed ($afterClick.Count -eq 2) `
+        -Passed ($afterClick.Count -eq ($visibleBefore.Count + 1)) `
         -Detail ('windows=' + [string]$afterClick.Count)
 
       [void][CodexPetDockTestNative]::ShowWindow($petHandle, 0)

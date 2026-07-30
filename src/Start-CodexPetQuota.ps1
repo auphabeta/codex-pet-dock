@@ -2467,6 +2467,16 @@ if ($null -ne $appIcon) {
   $petBase.Icon = $appIcon
 }
 
+$petDragSurface = New-Object CodexPetQuota.NoActivateForm
+$petDragSurface.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::None
+$petDragSurface.ShowInTaskbar = $false
+$petDragSurface.TopMost = $true
+$petDragSurface.BackColor = [System.Drawing.Color]::Black
+# A one-percent layered surface remains hit-testable without producing a
+# visible panel over the official animated pet.
+$petDragSurface.Opacity = 0.01
+$petDragSurface.Cursor = [System.Windows.Forms.Cursors]::SizeAll
+
 $baseControl = New-Object CodexPetQuota.PetBaseControl
 $baseControl.Dock = [System.Windows.Forms.DockStyle]::Fill
 $petBase.Controls.Add($baseControl)
@@ -2733,6 +2743,8 @@ $fastTrackingUntil = [DateTime]::MinValue
 $baseIsSettling = $false
 $lastBaseTargetSignature = ''
 $lastBaseZOrderAt = [DateTime]::MinValue
+$lastPetDragSurfaceSignature = ''
+$lastPetDragSurfaceZOrderAt = [DateTime]::MinValue
 $snapDockToMascotAtNextFrame = $false
 $isExiting = $false
 $lastTrayStatusKey = ''
@@ -3154,6 +3166,7 @@ if ($PanelLayoutDiagnostics) {
     controls = $layoutControls
   } | ConvertTo-Json -Depth 5
   $petBase.Dispose()
+  $petDragSurface.Dispose()
   if ($null -ne $baseTexture) {
     $baseTexture.Dispose()
   }
@@ -3224,11 +3237,18 @@ function Toggle-QuotaPanel {
 }
 
 function Start-PetWindowDrag {
-  param($sender, $eventArgs)
+  param(
+    $sender,
+    $eventArgs,
+    [switch]$FromMascotSurface
+  )
 
   if (
     $eventArgs.Button -ne [System.Windows.Forms.MouseButtons]::Left -or
-    [int]$eventArgs.Y -ge [int]$script:petDragTop -or
+    (
+      -not $FromMascotSurface -and
+      [int]$eventArgs.Y -ge [int]$script:petDragTop
+    ) -or
     $null -eq $script:currentPetWindow -or
     -not $script:currentPetWindow.Visible
   ) {
@@ -3256,9 +3276,14 @@ function Start-PetWindowDrag {
     WindowTop = [int]$petRect.Top
     WindowWidth = [int]($petRect.Right - $petRect.Left)
     WindowHeight = [int]($petRect.Bottom - $petRect.Top)
+    BaseLeft = [int]$petBase.Left
+    BaseTop = [int]$petBase.Top
+    SurfaceLeft = [int]$petDragSurface.Left
+    SurfaceTop = [int]$petDragSurface.Top
+    CaptureControl = $sender
     Moved = $false
   }
-  $baseControl.Capture = $true
+  $sender.Capture = $true
 }
 
 function Move-PetWindowDrag {
@@ -3288,6 +3313,28 @@ function Move-PetWindowDrag {
     0,
     0x0015
   )
+  if ($petBase.Visible) {
+    [void][CodexPetQuota.NativeMethods]::SetWindowPos(
+      $petBase.Handle,
+      [IntPtr]$script:petWindowDrag.Handle,
+      ([int]$script:petWindowDrag.BaseLeft + $deltaX),
+      ([int]$script:petWindowDrag.BaseTop + $deltaY),
+      0,
+      0,
+      0x0011
+    )
+  }
+  if ($petDragSurface.Visible) {
+    [void][CodexPetQuota.NativeMethods]::SetWindowPos(
+      $petDragSurface.Handle,
+      [IntPtr](-1),
+      ([int]$script:petWindowDrag.SurfaceLeft + $deltaX),
+      ([int]$script:petWindowDrag.SurfaceTop + $deltaY),
+      0,
+      0,
+      0x0011
+    )
+  }
   $script:petWindowDrag.Moved = $true
   Extend-FastTracking -Milliseconds 1200
 }
@@ -3296,8 +3343,102 @@ function Stop-PetWindowDrag {
   if ($null -eq $script:petWindowDrag) {
     return
   }
+  $captureControl = $script:petWindowDrag.CaptureControl
   $script:petWindowDrag = $null
-  $baseControl.Capture = $false
+  if ($null -ne $captureControl) {
+    $captureControl.Capture = $false
+  }
+}
+
+function Hide-PetDragSurface {
+  if (
+    $null -ne $script:petWindowDrag -and
+    $script:petWindowDrag.CaptureControl -eq $petDragSurface
+  ) {
+    Stop-PetWindowDrag
+  }
+  if ($petDragSurface.Visible) {
+    $petDragSurface.Hide()
+  }
+  $script:lastPetDragSurfaceSignature = ''
+}
+
+function Update-PetDragSurface {
+  param([Parameter(Mandatory = $true)]$MascotBounds)
+
+  $left = [int]$MascotBounds.Left
+  $top = [int]$MascotBounds.Top
+  $width = [math]::Max(40, [int]$MascotBounds.Width)
+  $height = [math]::Max(40, [int]$MascotBounds.Height)
+  $signature = (
+    [string]$left + ',' +
+    [string]$top + ',' +
+    [string]$width + ',' +
+    [string]$height
+  )
+  $geometryChanged = (
+    $signature -ne $script:lastPetDragSurfaceSignature
+  )
+  if ($geometryChanged) {
+    $protectedTop = [int][math]::Floor($height * 0.72)
+    $protectedHalfWidth = [math]::Max(
+      22,
+      [int][math]::Ceiling($width * 0.23)
+    )
+    $protectedLeft = [math]::Max(
+      0,
+      [int][math]::Floor($width / 2) - $protectedHalfWidth
+    )
+    $protectedWidth = [math]::Min(
+      $width - $protectedLeft,
+      $protectedHalfWidth * 2
+    )
+    $surfaceRegion = New-Object System.Drawing.Region (
+      New-Object System.Drawing.Rectangle 0, 0, $width, $height
+    )
+    $surfaceRegion.Exclude(
+      (
+        New-Object System.Drawing.Rectangle `
+          $protectedLeft, `
+          $protectedTop, `
+          $protectedWidth, `
+          ($height - $protectedTop)
+      )
+    )
+    $oldRegion = $petDragSurface.Region
+    $petDragSurface.Region = $surfaceRegion
+    if ($null -ne $oldRegion) {
+      $oldRegion.Dispose()
+    }
+    $petDragSurface.Bounds = New-Object System.Drawing.Rectangle `
+      $left, `
+      $top, `
+      $width, `
+      $height
+    $script:lastPetDragSurfaceSignature = $signature
+  }
+
+  if (-not $petDragSurface.Visible) {
+    $petDragSurface.Show()
+  }
+  $zOrderDue = (
+    [DateTime]::Now - $script:lastPetDragSurfaceZOrderAt
+  ).TotalMilliseconds -ge 500
+  if (
+    $geometryChanged -or
+    $zOrderDue
+  ) {
+    [void][CodexPetQuota.NativeMethods]::SetWindowPos(
+      $petDragSurface.Handle,
+      [IntPtr](-1),
+      $left,
+      $top,
+      $width,
+      $height,
+      0x0010
+    )
+    $script:lastPetDragSurfaceZOrderAt = [DateTime]::Now
+  }
 }
 
 function Complete-PetBaseMouseUp {
@@ -3334,6 +3475,25 @@ $baseControl.Add_MouseCaptureChanged({
 })
 $baseControl.Add_MouseLeave({
   $baseControl.Cursor = [System.Windows.Forms.Cursors]::Hand
+})
+$petDragSurface.Add_MouseDown({
+  Start-PetWindowDrag $this $_ -FromMascotSurface
+})
+$petDragSurface.Add_MouseMove({
+  Move-PetWindowDrag $this $_
+})
+$petDragSurface.Add_MouseUp({
+  if (
+    $_.Button -eq [System.Windows.Forms.MouseButtons]::Left -and
+    $null -ne $script:petWindowDrag
+  ) {
+    Stop-PetWindowDrag
+  }
+})
+$petDragSurface.Add_MouseCaptureChanged({
+  if (-not $petDragSurface.Capture) {
+    Stop-PetWindowDrag
+  }
 })
 
 $trayMenu = New-Object System.Windows.Forms.ContextMenuStrip
@@ -3803,6 +3963,7 @@ $timer.Add_Tick({
     0
   }
   if ($nextPetHandle -ne $previousPetHandle) {
+    Hide-PetDragSurface
     Reset-PetMascotTracking -ClearLastBounds
     $script:lastBaseTargetSignature = ''
     $script:baseIsSettling = $false
@@ -3834,6 +3995,7 @@ $timer.Add_Tick({
       -not $petTemporarilyUnavailable
     )
   ) {
+    Hide-PetDragSurface
     $petBase.Hide()
     $panel.Hide()
     $script:baseIsSettling = $false
@@ -3873,6 +4035,12 @@ $timer.Add_Tick({
       $mascotBounds = $script:lastMascotBounds
     }
 
+    if ($null -ne $mascotBounds) {
+      Update-PetDragSurface -MascotBounds $mascotBounds
+    } else {
+      Hide-PetDragSurface
+    }
+
     if ($null -eq $mascotBounds) {
       $anchorLeft = $script:currentPetWindow.Left
       $anchorWidth = $script:currentPetWindow.Width
@@ -3904,6 +4072,7 @@ $timer.Add_Tick({
     $baseWorkingArea = Get-MonitorWorkArea `
       -WindowHandle $script:currentPetWindow.Handle
     if ($null -eq $baseWorkingArea) {
+      Hide-PetDragSurface
       $petBase.Hide()
       $panel.Hide()
       $script:currentPetWindow = $null
@@ -4068,6 +4237,7 @@ $timer.Add_Tick({
   }
   } catch {
     $petBase.Hide()
+    Hide-PetDragSurface
     $panel.Hide()
     $script:currentPetWindow = $null
     $script:baseIsSettling = $false
@@ -4095,6 +4265,8 @@ try {
     $probeProcess.Kill()
   }
   $petBase.Dispose()
+  $petDragSurface.Dispose()
+  $petDragSurface.Dispose()
   if ($null -ne $baseTexture) {
     $baseTexture.Dispose()
   }
