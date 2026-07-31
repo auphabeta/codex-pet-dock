@@ -2,6 +2,9 @@
 /dist/
 /src/native/*.exe
 
+# Private writing, promotion and publishing workspace
+/content-tasks/
+
 # Local regression output
 /tests/last-regression.*.txt
 /tests/last-regression.pid.txt
