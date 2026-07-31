@@ -272,6 +272,13 @@ URL、绝对路径、目录穿越、符号链接、超大文件与不安全尺�
 
 更多说明见 [`PRIVACY.md`](PRIVACY.md) 和 [`SECURITY.md`](SECURITY.md)。
 
+## 遇到问题或有新想法？
+
+欢迎大家直接提交 **[Issue](https://github.com/hjxccc/codex-pet-dock/issues/new/choose)**。
+安装失败、底座错位、额度不刷新、主题显示异常或功能建议都可以反馈。为了更快定位，
+请尽量附上 Windows 版本、Codex 版本、Pet Dock 版本、复现步骤和已脱敏截图；不要
+公开上传 Access Token、`auth.json`、会话正文或包含个人信息的完整日志。
+
 ## 常见问题
 
 ### 重启 Windows 或 Codex 后没有底座
@@ -344,6 +351,7 @@ Codex Pet Dock 采用 [MIT License](LICENSE) 开源。你可以自由使用、�
 本项目是独立社区项目，不由 OpenAI 开发、认可或提供支持；Codex 等名称可能是
 其各自权利人的商标。详见 [NOTICE.md](NOTICE.md)。
 
-欢迎通过 Issue 报告可复现问题，或提交 Pull Request。开始前请阅读
+欢迎通过 [Issue](https://github.com/hjxccc/codex-pet-dock/issues/new/choose)
+报告可复现问题，或提交 Pull Request。开始前请阅读
 [CONTRIBUTING.md](CONTRIBUTING.md)；安全漏洞请按
 [SECURITY.md](SECURITY.md) 私下报告，不要公开包含凭证或个人信息的日志。

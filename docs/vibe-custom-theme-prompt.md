@@ -29,8 +29,10 @@ Codex Pet Dock 底座。
 - 现有透明 PNG：[填写绝对路径；没有则写“无”]
 
 【先确认环境】
-1. 查找 Codex Pet Dock。优先使用当前仓库；否则检查
-   %LOCALAPPDATA%\Programs\CodexPetDock。
+1. 查找 Codex Pet Dock。优先使用当前工作区；从托盘 `Create with Codex`
+   打开的对话已经指向实际安装目录。如果需要自行定位安装版，读取注册表
+   `HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{5C836C8E-D328-4A2D-A271-30FBB9D39D01}_is1`
+   的 `InstallLocation`，不要假定程序一定安装在 C 盘默认目录。
 2. 阅读 docs/custom-themes.md，以及自定义主题目录中的
    theme.example.json（如果存在），以实际项目契约为准。
 3. 如果找不到完整的 Pet Dock 安装或主题规范，停止并告诉我缺少什么，不要猜测。

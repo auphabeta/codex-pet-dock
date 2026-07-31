@@ -154,7 +154,8 @@ Codex Pet Dock 使用 Codex 自己的 `app-server` 登录状态。额外提供�
 %LOCALAPPDATA%\Programs\CodexPetDock\
 ```
 
-不要求管理员权限。
+不要求管理员权限。用户也可以选择 `D:\CodexPetDock` 这类有写入权限的本地目录；
+安装器不得把实际安装位置写死为默认路径。
 
 ### 安装选项
 

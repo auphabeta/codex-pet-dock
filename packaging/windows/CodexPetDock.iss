@@ -77,9 +77,39 @@ Filename: "{sys}\wscript.exe"; Parameters: """{app}\CodexPetDock.vbs"""; Descrip
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy RemoteSigned -File ""{app}\tools\Stop-CodexPetDock.ps1"" -InstallRoot ""{app}"""; Flags: runhidden waituntilterminated; RunOnceId: "StopCodexPetDock"
 
 [InstallDelete]
-Type: filesandordirs; Name: "{app}\*"
+Type: files; Name: "{app}\src\quota-probe.mjs"
+Type: files; Name: "{app}\src\Start-CodexPetThemeStudio.ps1"
 
 [Code]
+function IsUnsafeInstallPath(const InstallPath: String): Boolean;
+var
+  ExpandedPath: String;
+  DriveRoot: String;
+begin
+  ExpandedPath := RemoveBackslashUnlessRoot(ExpandFileName(InstallPath));
+  DriveRoot := AddBackslash(ExtractFileDrive(ExpandedPath));
+  Result :=
+    (ExpandedPath = '') or
+    (Copy(ExpandedPath, 1, 2) = '\\') or
+    (DriveRoot = '') or
+    (CompareText(AddBackslash(ExpandedPath), DriveRoot) = 0);
+end;
+
+function NextButtonClick(CurPageID: Integer): Boolean;
+begin
+  Result := True;
+  if (CurPageID = wpSelectDir) and IsUnsafeInstallPath(WizardDirValue) then
+  begin
+    MsgBox(
+      'Choose a folder on a local drive, for example D:\CodexPetDock. ' +
+      'A drive root or network path cannot be used.',
+      mbError,
+      MB_OK
+    );
+    Result := False;
+  end;
+end;
+
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   ResultCode: Integer;
@@ -87,6 +117,13 @@ var
   StopArguments: String;
 begin
   Result := '';
+  if IsUnsafeInstallPath(ExpandConstant('{app}')) then
+  begin
+    Result :=
+      'Choose a folder on a local drive, for example D:\CodexPetDock. ' +
+      'A drive root or network path cannot be used.';
+    exit;
+  end;
   ExtractTemporaryFile('Stop-CodexPetDock.ps1');
   StopScript := ExpandConstant('{tmp}\Stop-CodexPetDock.ps1');
   StopArguments :=
@@ -103,9 +140,13 @@ begin
     ewWaitUntilTerminated,
     ResultCode
   ) then
-    Result := 'Could not stop the existing Codex Pet Dock process.'
+    Result :=
+      'Could not run the Codex Pet Dock shutdown helper. ' +
+      'Close the app from its tray menu and try again.'
   else if ResultCode <> 0 then
-    Result := 'The existing Codex Pet Dock process could not be stopped.';
+    Result :=
+      'The existing Codex Pet Dock process could not be stopped. ' +
+      'Close it from its tray menu or Task Manager, then try again.';
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);

@@ -699,6 +699,9 @@ Add-TestResult `
   -Passed (
     -not [string]::IsNullOrWhiteSpace($vibePromptSource) -and
     $vibePromptSource -match '%LOCALAPPDATA%\\CodexPetDock\\themes' -and
+    $vibePromptSource -match 'InstallLocation' -and
+    $vibePromptSource -notmatch
+      '%LOCALAPPDATA%\\Programs\\CodexPetDock' -and
     $vibePromptSource -match 'theme\.json' -and
     $vibePromptSource -match 'platform\.png' -and
     $vibePromptSource -match 'app\.asar' -and

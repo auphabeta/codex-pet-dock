@@ -27,6 +27,12 @@ jobs:
         shell: powershell
         run: choco install innosetup --yes --no-progress
 
+      - name: Test installer paths and process shutdown
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -ExecutionPolicy RemoteSigned `
+            -File .\tests\Test-InstallerPaths.ps1
+
       - name: Build Windows installer and portable package
         shell: powershell
         run: |
