@@ -4,10 +4,11 @@
 
 ## 下载 Windows 版
 
-### [⬇️ 打开 Releases 下载 Windows 安装包](https://github.com/hjxccc/codex-pet-dock/releases)
+### [⬇️ 直接下载 Windows 安装包](https://github.com/hjxccc/codex-pet-dock/releases/download/v0.3.0-beta/CodexPetDock-Setup-0.3.0-beta.exe)
 
-普通用户请选择最新版本下方的 **Assets**，点击
-**`CodexPetDock-Setup-版本号.exe`** 下载，完成后双击安装。
+下载完成后双击 `CodexPetDock-Setup-0.3.0-beta.exe`，按安装向导操作即可。
+需要便携 ZIP、SHA-256 校验值或查看更新说明，可以打开
+**[全部 Releases](https://github.com/hjxccc/codex-pet-dock/releases)**。
 
 > 如果 Releases 页面没有显示上述 `.exe`，说明安装包尚未公开发布。请不要下载
 > GitHub 自动生成的 `Source code (zip)`，它是源代码，不是可直接安装的软件。
@@ -130,15 +131,15 @@ Pet Dock 不依赖某一只宠物的图片或动作。用户在 Codex 中切换�
 
 ### 普通用户：使用安装程序
 
-1. 点击 **[打开 Windows 下载页](https://github.com/hjxccc/codex-pet-dock/releases)**；
-2. 打开页面最上方的最新版本，找到并展开 **Assets**；
-3. 点击 **`CodexPetDock-Setup-版本号.exe`**。例如当前 Beta 的文件名是
-   `CodexPetDock-Setup-0.3.0-beta.exe`；
-4. 下载完成后双击 `.exe`，按安装向导操作；
-5. 安装完成后打开 Codex 宠物，Pet Dock 会自动出现在宠物脚下。
+1. 点击 **[直接下载 Windows 安装包](https://github.com/hjxccc/codex-pet-dock/releases/download/v0.3.0-beta/CodexPetDock-Setup-0.3.0-beta.exe)**；
+2. 下载完成后双击 `CodexPetDock-Setup-0.3.0-beta.exe`；
+3. 按安装向导操作；
+4. 安装完成后打开 Codex 宠物，Pet Dock 会自动出现在宠物脚下。
 
-请不要下载 `Source code (zip)` 或 `Source code (tar.gz)`：它们是 GitHub 自动
-生成的源码压缩包，不是 Windows 安装程序。
+也可以打开 **[全部 Releases](https://github.com/hjxccc/codex-pet-dock/releases)**，
+展开最新版本的 **Assets** 后选择 `CodexPetDock-Setup-版本号.exe`。请不要下载
+`Source code (zip)` 或 `Source code (tar.gz)`：它们是 GitHub 自动生成的源码
+压缩包，不是 Windows 安装程序。
 
 同一版本的 `SHA256SUMS.txt` 用于核对安装包完整性。安装器会创建开始菜单与卸载
 入口，默认启用当前用户登录自启，并可立即启动 Pet Dock。
