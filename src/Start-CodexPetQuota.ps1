@@ -1643,6 +1643,11 @@ function Read-QuotaProbe {
 
   if ($exitCode -ne 0) {
     $message = $stderr.Trim()
+    $message = [regex]::Replace(
+      $message,
+      '(?:\x1B)?\[[0-9;?]*m',
+      ''
+    )
     if ([string]::IsNullOrWhiteSpace($message)) {
       $message = 'Quota probe failed.'
     }
@@ -2736,7 +2741,12 @@ $probeProcess = $null
 $lastProbeStartedAt = [DateTime]::MinValue
 $nextAutomaticProbeAt = [DateTime]::MinValue
 $probeFailureCount = 0
-$probeFailureBaseSeconds = 900
+$probeFailureBaseSeconds = 15
+$probeFailureMaxSeconds = 300
+$networkAvailable = $true
+$lastNetworkAvailable = $null
+$lastNetworkCheckAt = [DateTime]::MinValue
+$networkCheckIntervalSeconds = 2
 $startedAt = [DateTime]::Now
 $currentPetWindow = $null
 $petWindowDrag = $null
@@ -3208,6 +3218,44 @@ function Begin-QuotaRefresh {
   $script:nextAutomaticProbeAt = (
     $script:lastProbeStartedAt.AddSeconds($RefreshSeconds)
   )
+}
+
+function Update-NetworkRecoveryState {
+  if (
+    (
+      [DateTime]::Now - $script:lastNetworkCheckAt
+    ).TotalSeconds -lt $script:networkCheckIntervalSeconds
+  ) {
+    return
+  }
+
+  $script:lastNetworkCheckAt = [DateTime]::Now
+  $isAvailable = $true
+  try {
+    $isAvailable = (
+      [System.Net.NetworkInformation.NetworkInterface]::
+        GetIsNetworkAvailable()
+    )
+  } catch {
+    # If Windows cannot report link state, keep retries enabled. The quota
+    # probe remains the authoritative connectivity check.
+    $isAvailable = $true
+  }
+
+  if (
+    $null -ne $script:lastNetworkAvailable -and
+    -not [bool]$script:lastNetworkAvailable -and
+    $isAvailable
+  ) {
+    $script:probeFailureCount = 0
+    $script:nextAutomaticProbeAt = [DateTime]::Now
+    Write-SidecarLog -Message (
+      'Network link restored; quota refresh scheduled immediately.'
+    )
+  }
+
+  $script:networkAvailable = [bool]$isAvailable
+  $script:lastNetworkAvailable = [bool]$isAvailable
 }
 
 function Stop-QuotaRefresh {
@@ -4311,11 +4359,11 @@ $timer.Add_Tick({
     } catch {
       $script:latestError = $_.Exception.Message
       $script:probeFailureCount = [math]::Min(
-        3,
+        6,
         [int]$script:probeFailureCount + 1
       )
       $retrySeconds = [math]::Min(
-        3600,
+        $probeFailureMaxSeconds,
         $probeFailureBaseSeconds * [math]::Pow(
           2,
           [int]$script:probeFailureCount - 1
@@ -4330,9 +4378,12 @@ $timer.Add_Tick({
     }
   }
 
+  Update-NetworkRecoveryState
+
   if (
     $null -ne $script:currentPetWindow -and
     $script:currentPetWindow.Visible -and
+    $script:networkAvailable -and
     $null -eq $script:probeProcess -and
     [DateTime]::Now -ge $script:nextAutomaticProbeAt
   ) {

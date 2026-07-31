@@ -366,7 +366,7 @@ Add-TestResult `
   -Name 'Quota refresh requires a visible pet' `
   -Passed (
     $sidecarSource -match (
-      '\$script:currentPetWindow\.Visible\s+-and\s+' +
+      '(?s)\$script:currentPetWindow\.Visible\s+-and.+?' +
       '\$null\s+-eq\s+\$script:probeProcess'
     ) -and
     $sidecarSource -match 'Stop-QuotaRefresh'
@@ -380,14 +380,39 @@ Add-TestResult `
   )
 Add-TestResult `
   -Area 'Power policy' `
-  -Name 'Quota failures use bounded exponential backoff' `
+  -Name 'Quota failures recover quickly with bounded exponential backoff' `
   -Passed (
     $sidecarSource -match '\$probeFailureCount' -and
-    $sidecarSource -match '\$probeFailureBaseSeconds\s*=\s*900' -and
+    $sidecarSource -match '\$probeFailureBaseSeconds\s*=\s*15' -and
+    $sidecarSource -match '\$probeFailureMaxSeconds\s*=\s*300' -and
     $sidecarSource -match '\$nextAutomaticProbeAt' -and
     $sidecarSource -match (
       '(?s)\$retrySeconds\s*=\s*\[math\]::Min\(.+?' +
-      '3600.+?\$probeFailureBaseSeconds.+?\[math\]::Pow'
+      '\$probeFailureMaxSeconds.+?\$probeFailureBaseSeconds.+?\[math\]::Pow'
+    )
+  )
+Add-TestResult `
+  -Area 'Reliability' `
+  -Name 'Network restoration schedules an immediate quota refresh' `
+  -Passed (
+    $sidecarSource -match 'function\s+Update-NetworkRecoveryState' -and
+    $sidecarSource -match (
+      '(?s)-not\s+\[bool\]\$script:lastNetworkAvailable.+?' +
+      '\$isAvailable.+?' +
+      '\$script:nextAutomaticProbeAt\s*=\s*\[DateTime\]::Now'
+    ) -and
+    $sidecarSource -match (
+      '(?s)\$script:currentPetWindow\.Visible\s+-and.+?' +
+      '\$script:networkAvailable\s+-and.+?' +
+      '\$null\s+-eq\s+\$script:probeProcess'
+    )
+  )
+Add-TestResult `
+  -Area 'Reliability' `
+  -Name 'Quota errors strip terminal color escape sequences' `
+  -Passed (
+    $sidecarSource -match (
+      '\(\?:\\x1B\)\?\\\[\[0-9;\?\]\*m'
     )
   )
 Add-TestResult `
