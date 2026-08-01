@@ -7,7 +7,9 @@ struct DockMetrics {
 }
 
 final class DockOverlayController {
+    var onDragBegan: (() -> Void)?
     var onDrag: ((CGPoint) -> Void)?
+    var onDragEnded: ((CGPoint) -> Void)?
 
     private let panel: NSPanel
     private let dockView: DockView
@@ -40,8 +42,14 @@ final class DockOverlayController {
         panel.acceptsMouseMovedEvents = true
         panel.isReleasedWhenClosed = false
 
+        dockView.onDragBegan = { [weak self] in
+            self?.onDragBegan?()
+        }
         dockView.onDrag = { [weak self] delta in
             self?.onDrag?(delta)
+        }
+        dockView.onDragEnded = { [weak self] totalDelta in
+            self?.onDragEnded?(totalDelta)
         }
     }
 
@@ -77,6 +85,13 @@ final class DockOverlayController {
         panel.orderFrontRegardless()
     }
 
+    func moveBy(_ delta: CGPoint) {
+        var frame = panel.frame
+        frame.origin.x += delta.x
+        frame.origin.y += delta.y
+        panel.setFrame(frame, display: true)
+    }
+
     func hide() {
         panel.orderOut(nil)
     }
@@ -84,9 +99,12 @@ final class DockOverlayController {
 
 private final class DockView: NSView {
     var metrics = DockMetrics()
+    var onDragBegan: (() -> Void)?
     var onDrag: ((CGPoint) -> Void)?
+    var onDragEnded: ((CGPoint) -> Void)?
 
     private var lastDragLocation: CGPoint?
+    private var totalDrag = CGPoint.zero
 
     override var isFlipped: Bool { false }
 
@@ -192,7 +210,9 @@ private final class DockView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         lastDragLocation = NSEvent.mouseLocation
+        totalDrag = .zero
         NSCursor.closedHand.set()
+        onDragBegan?()
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -206,11 +226,16 @@ private final class DockView: NSView {
             y: current.y - previous.y
         )
         lastDragLocation = current
+        totalDrag.x += delta.x
+        totalDrag.y += delta.y
         onDrag?(delta)
     }
 
     override func mouseUp(with event: NSEvent) {
+        let completedDrag = totalDrag
         lastDragLocation = nil
+        totalDrag = .zero
         NSCursor.openHand.set()
+        onDragEnded?(completedDrag)
     }
 }
