@@ -15,16 +15,16 @@ final class DockOverlayController {
     private let dockView: DockView
     private let size = CGSize(width: 224, height: 72)
 
-    /// Vertical position of the illuminated platform inside the dock panel.
+    /// Vertical location of the illuminated platform inside the panel.
     private let platformContactFromBottom: CGFloat = 49
 
-    /// Base overlap used to place the visible pet artwork on the platform.
+    /// Visual overlap used by the original pet-only anchor contract.
     private let petSeatOverlap: CGFloat = 22
 
-    /// The Codex AX frame currently includes the voice control below the pet.
-    /// A smaller compensation is sufficient now that the dock has a transparent
-    /// notch for the voice button.
-    private let codexVoiceControlCompensation: CGFloat = 24
+    /// The macOS Codex accessibility frame includes the voice control beneath
+    /// the visible pet. Keep the intact dock body immediately below that
+    /// control instead of cutting a large transparent hole through the dock.
+    private let codexVoiceControlClearance: CGFloat = -42
 
     init() {
         panel = NSPanel(
@@ -73,9 +73,10 @@ final class DockOverlayController {
             y: petFrame.minY
                 - platformContactFromBottom
                 + petSeatOverlap
-                + codexVoiceControlCompensation
+                + codexVoiceControlClearance
                 + offset.y
         )
+
         setInteractionEnabled(allowsDragging)
         panel.setFrame(CGRect(origin: origin, size: size), display: true)
         dockView.metrics = metrics
@@ -90,10 +91,12 @@ final class DockOverlayController {
         guard let visibleFrame = NSScreen.main?.visibleFrame else {
             return
         }
+
         let origin = CGPoint(
             x: visibleFrame.midX - size.width / 2 + offset.x,
             y: visibleFrame.minY + 36 + offset.y
         )
+
         setInteractionEnabled(true)
         panel.setFrame(CGRect(origin: origin, size: size), display: true)
         dockView.metrics = metrics
@@ -140,9 +143,6 @@ private final class DockView: NSView {
     private var lastDragLocation: CGPoint?
     private var totalDrag = CGPoint.zero
 
-    private let voiceButtonNotchWidth: CGFloat = 72
-    private let voiceButtonNotchDepth: CGFloat = 33
-
     override var isFlipped: Bool { false }
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
@@ -158,16 +158,24 @@ private final class DockView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
-
         NSGraphicsContext.current?.imageInterpolation = .high
 
+        drawBody()
+        drawPlatform()
+        drawVoiceDockingHalo()
+        drawMetrics()
+        drawStatus()
+    }
+
+    private func drawBody() {
         let bodyRect = bounds.insetBy(dx: 5, dy: 5)
         let body = NSBezierPath(
             roundedRect: bodyRect,
             xRadius: 13,
             yRadius: 13
         )
-        let bodyGradient = NSGradient(
+
+        let gradient = NSGradient(
             starting: NSColor(
                 calibratedRed: 0.035,
                 green: 0.075,
@@ -181,7 +189,7 @@ private final class DockView: NSView {
                 alpha: 0.98
             )
         )
-        bodyGradient?.draw(in: body, angle: -90)
+        gradient?.draw(in: body, angle: -90)
 
         NSColor(
             calibratedRed: 0.30,
@@ -191,10 +199,12 @@ private final class DockView: NSView {
         ).setStroke()
         body.lineWidth = 1.2
         body.stroke()
+    }
 
+    private func drawPlatform() {
         let platformRect = CGRect(x: 42, y: 42, width: 140, height: 24)
         let platform = NSBezierPath(ovalIn: platformRect)
-        let platformGradient = NSGradient(
+        let gradient = NSGradient(
             starting: NSColor(
                 calibratedRed: 0.25,
                 green: 0.92,
@@ -208,7 +218,7 @@ private final class DockView: NSView {
                 alpha: 0.88
             )
         )
-        platformGradient?.draw(in: platform, angle: -90)
+        gradient?.draw(in: platform, angle: -90)
 
         NSColor(
             calibratedRed: 0.56,
@@ -229,9 +239,51 @@ private final class DockView: NSView {
             alpha: 0.16
         ).setFill()
         glow.fill()
+    }
 
-        clearVoiceButtonNotch()
+    /// A narrow cyan landing marker visually connects the Codex voice control
+    /// to the platform without obscuring it or breaking the dock silhouette.
+    private func drawVoiceDockingHalo() {
+        let outerRect = CGRect(
+            x: bounds.midX - 30,
+            y: 57,
+            width: 60,
+            height: 11
+        )
+        let outer = NSBezierPath(ovalIn: outerRect)
+        NSColor(
+            calibratedRed: 0.45,
+            green: 0.94,
+            blue: 1.0,
+            alpha: 0.20
+        ).setFill()
+        outer.fill()
 
+        let ring = NSBezierPath(ovalIn: outerRect.insetBy(dx: 7, dy: 2.5))
+        NSColor(
+            calibratedRed: 0.66,
+            green: 0.98,
+            blue: 1.0,
+            alpha: 0.72
+        ).setStroke()
+        ring.lineWidth = 1
+        ring.stroke()
+
+        let core = NSBezierPath(
+            roundedRect: CGRect(
+                x: bounds.midX - 14,
+                y: 61,
+                width: 28,
+                height: 4
+            ),
+            xRadius: 2,
+            yRadius: 2
+        )
+        NSColor.white.withAlphaComponent(0.42).setFill()
+        core.fill()
+    }
+
+    private func drawMetrics() {
         drawMetric(
             header: "WEEK LEFT",
             value: metrics.weeklyRemainingText,
@@ -249,8 +301,10 @@ private final class DockView: NSView {
         NSColor.white.withAlphaComponent(0.18).setStroke()
         divider.lineWidth = 1
         divider.stroke()
+    }
 
-        let statusAttributes: [NSAttributedString.Key: Any] = [
+    private func drawStatus() {
+        let attributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.monospacedSystemFont(ofSize: 7, weight: .medium),
             .foregroundColor: NSColor(
                 calibratedRed: 0.50,
@@ -263,55 +317,11 @@ private final class DockView: NSView {
         status.draw(
             at: CGPoint(
                 x: bounds.midX
-                    - status.size(withAttributes: statusAttributes).width / 2,
+                    - status.size(withAttributes: attributes).width / 2,
                 y: 6
             ),
-            withAttributes: statusAttributes
+            withAttributes: attributes
         )
-    }
-
-    /// Cuts an open-top transparent notch through both the dark body and the
-    /// illuminated platform. The Codex-owned voice button remains visible
-    /// through this region while the cyan outline visually integrates it with
-    /// the dock.
-    private func clearVoiceButtonNotch() {
-        let notchRect = CGRect(
-            x: bounds.midX - voiceButtonNotchWidth / 2,
-            y: bounds.maxY - voiceButtonNotchDepth,
-            width: voiceButtonNotchWidth,
-            height: voiceButtonNotchDepth + 12
-        )
-        let cornerRadius = voiceButtonNotchWidth / 4
-
-        guard let context = NSGraphicsContext.current?.cgContext else {
-            return
-        }
-
-        context.saveGState()
-        let notchPath = CGPath(
-            roundedRect: notchRect,
-            cornerWidth: cornerRadius,
-            cornerHeight: cornerRadius,
-            transform: nil
-        )
-        context.addPath(notchPath)
-        context.clip()
-        context.clear(notchRect)
-        context.restoreGState()
-
-        let outline = NSBezierPath(
-            roundedRect: notchRect,
-            xRadius: cornerRadius,
-            yRadius: cornerRadius
-        )
-        NSColor(
-            calibratedRed: 0.56,
-            green: 0.96,
-            blue: 1.0,
-            alpha: 0.42
-        ).setStroke()
-        outline.lineWidth = 1
-        outline.stroke()
     }
 
     private func drawMetric(header: String, value: String, in rect: CGRect) {
@@ -324,10 +334,7 @@ private final class DockView: NSView {
             .paragraphStyle: paragraph
         ]
         let valueAttributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.monospacedSystemFont(
-                ofSize: 14,
-                weight: .semibold
-            ),
+            .font: NSFont.monospacedSystemFont(ofSize: 14, weight: .semibold),
             .foregroundColor: NSColor(
                 calibratedRed: 0.76,
                 green: 0.98,
@@ -372,6 +379,7 @@ private final class DockView: NSView {
             lastDragLocation = current
             return
         }
+
         let delta = CGPoint(
             x: current.x - previous.x,
             y: current.y - previous.y
