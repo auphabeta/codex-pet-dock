@@ -14,8 +14,14 @@ final class DockOverlayController {
     private let panel: NSPanel
     private let dockView: DockView
     private let size = CGSize(width: 224, height: 72)
-    private let contactSurfaceFromBottom: CGFloat = 49
-    private let contactOverlap: CGFloat = 6
+
+    /// Vertical position of the illuminated platform inside the dock panel.
+    private let platformContactFromBottom: CGFloat = 49
+
+    /// How far the dock overlaps the pet's AX frame. The pet artwork exposes
+    /// transparent padding below its visible feet, so a positive overlap is
+    /// required to make the character visually stand on the platform.
+    private let petSeatOverlap: CGFloat = 22
 
     init() {
         panel = NSPanel(
@@ -60,7 +66,10 @@ final class DockOverlayController {
     ) {
         let origin = CGPoint(
             x: petFrame.midX - size.width / 2 + offset.x,
-            y: petFrame.minY - contactSurfaceFromBottom + contactOverlap + offset.y
+            y: petFrame.minY
+                - platformContactFromBottom
+                + petSeatOverlap
+                + offset.y
         )
         panel.setFrame(CGRect(origin: origin, size: size), display: true)
         dockView.metrics = metrics
