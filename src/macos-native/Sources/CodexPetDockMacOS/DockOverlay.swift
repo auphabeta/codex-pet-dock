@@ -22,8 +22,8 @@ final class DockOverlayController {
     private let petSeatOverlap: CGFloat = 22
 
     /// The voice control is a separate Codex-owned element below the pet.
-    /// Lift the intact dock close enough to read as one composition while
-    /// retaining a small clear gap around the white voice button.
+    /// Keep a small clear gap between the white voice button and the intact
+    /// dock, without drawing any additional marker or overlay around it.
     private let codexVoiceControlClearance: CGFloat = 8
 
     init() {
@@ -162,7 +162,6 @@ private final class DockView: NSView {
 
         drawBody()
         drawPlatform()
-        drawVoiceDockingHalo()
         drawMetrics()
         drawStatus()
     }
@@ -239,48 +238,6 @@ private final class DockView: NSView {
             alpha: 0.16
         ).setFill()
         glow.fill()
-    }
-
-    /// A narrow cyan landing marker visually connects the Codex voice control
-    /// to the platform without obscuring it or breaking the dock silhouette.
-    private func drawVoiceDockingHalo() {
-        let outerRect = CGRect(
-            x: bounds.midX - 30,
-            y: 57,
-            width: 60,
-            height: 11
-        )
-        let outer = NSBezierPath(ovalIn: outerRect)
-        NSColor(
-            calibratedRed: 0.45,
-            green: 0.94,
-            blue: 1.0,
-            alpha: 0.20
-        ).setFill()
-        outer.fill()
-
-        let ring = NSBezierPath(ovalIn: outerRect.insetBy(dx: 7, dy: 2.5))
-        NSColor(
-            calibratedRed: 0.66,
-            green: 0.98,
-            blue: 1.0,
-            alpha: 0.72
-        ).setStroke()
-        ring.lineWidth = 1
-        ring.stroke()
-
-        let core = NSBezierPath(
-            roundedRect: CGRect(
-                x: bounds.midX - 14,
-                y: 61,
-                width: 28,
-                height: 4
-            ),
-            xRadius: 2,
-            yRadius: 2
-        )
-        NSColor.white.withAlphaComponent(0.42).setFill()
-        core.fill()
     }
 
     private func drawMetrics() {
