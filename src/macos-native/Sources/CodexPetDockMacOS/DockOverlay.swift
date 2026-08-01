@@ -62,7 +62,8 @@ final class DockOverlayController {
     func show(
         attachedTo petFrame: CGRect,
         metrics: DockMetrics,
-        offset: CGPoint = .zero
+        offset: CGPoint = .zero,
+        allowsDragging: Bool = true
     ) {
         let origin = CGPoint(
             x: petFrame.midX - size.width / 2 + offset.x,
@@ -71,6 +72,7 @@ final class DockOverlayController {
                 + petSeatOverlap
                 + offset.y
         )
+        setInteractionEnabled(allowsDragging)
         panel.setFrame(CGRect(origin: origin, size: size), display: true)
         dockView.metrics = metrics
         dockView.needsDisplay = true
@@ -88,6 +90,7 @@ final class DockOverlayController {
             x: visibleFrame.midX - size.width / 2 + offset.x,
             y: visibleFrame.minY + 36 + offset.y
         )
+        setInteractionEnabled(true)
         panel.setFrame(CGRect(origin: origin, size: size), display: true)
         dockView.metrics = metrics
         dockView.needsDisplay = true
@@ -104,6 +107,12 @@ final class DockOverlayController {
     func hide() {
         panel.orderOut(nil)
     }
+
+    private func setInteractionEnabled(_ enabled: Bool) {
+        dockView.isDragEnabled = enabled
+        panel.ignoresMouseEvents = !enabled
+        panel.acceptsMouseMovedEvents = enabled
+    }
 }
 
 private final class DockView: NSView {
@@ -112,18 +121,32 @@ private final class DockView: NSView {
     var onDrag: ((CGPoint) -> Void)?
     var onDragEnded: ((CGPoint) -> Void)?
 
+    var isDragEnabled = true {
+        didSet {
+            if !isDragEnabled {
+                lastDragLocation = nil
+                totalDrag = .zero
+            }
+            if let window {
+                window.invalidateCursorRects(for: self)
+            }
+        }
+    }
+
     private var lastDragLocation: CGPoint?
     private var totalDrag = CGPoint.zero
 
     override var isFlipped: Bool { false }
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
-        true
+        isDragEnabled
     }
 
     override func resetCursorRects() {
         super.resetCursorRects()
-        addCursorRect(bounds, cursor: .openHand)
+        if isDragEnabled {
+            addCursorRect(bounds, cursor: .openHand)
+        }
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -218,6 +241,7 @@ private final class DockView: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
+        guard isDragEnabled else { return }
         lastDragLocation = NSEvent.mouseLocation
         totalDrag = .zero
         NSCursor.closedHand.set()
@@ -225,6 +249,7 @@ private final class DockView: NSView {
     }
 
     override func mouseDragged(with event: NSEvent) {
+        guard isDragEnabled else { return }
         let current = NSEvent.mouseLocation
         guard let previous = lastDragLocation else {
             lastDragLocation = current
@@ -241,6 +266,7 @@ private final class DockView: NSView {
     }
 
     override func mouseUp(with event: NSEvent) {
+        guard isDragEnabled else { return }
         let completedDrag = totalDrag
         lastDragLocation = nil
         totalDrag = .zero
