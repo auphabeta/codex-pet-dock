@@ -22,9 +22,9 @@ final class DockOverlayController {
     private let petSeatOverlap: CGFloat = 22
 
     /// The Codex AX frame currently includes the voice control below the pet.
-    /// Compensate for that control area so the platform aligns with the pet's
-    /// visible feet rather than the bottom of the combined accessibility frame.
-    private let codexVoiceControlCompensation: CGFloat = 32
+    /// A smaller compensation is sufficient now that the dock has a transparent
+    /// notch for the voice button.
+    private let codexVoiceControlCompensation: CGFloat = 24
 
     init() {
         panel = NSPanel(
@@ -140,6 +140,9 @@ private final class DockView: NSView {
     private var lastDragLocation: CGPoint?
     private var totalDrag = CGPoint.zero
 
+    private let voiceButtonNotchWidth: CGFloat = 72
+    private let voiceButtonNotchDepth: CGFloat = 33
+
     override var isFlipped: Bool { false }
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
@@ -165,30 +168,69 @@ private final class DockView: NSView {
             yRadius: 13
         )
         let bodyGradient = NSGradient(
-            starting: NSColor(calibratedRed: 0.035, green: 0.075, blue: 0.13, alpha: 0.97),
-            ending: NSColor(calibratedRed: 0.02, green: 0.025, blue: 0.055, alpha: 0.98)
+            starting: NSColor(
+                calibratedRed: 0.035,
+                green: 0.075,
+                blue: 0.13,
+                alpha: 0.97
+            ),
+            ending: NSColor(
+                calibratedRed: 0.02,
+                green: 0.025,
+                blue: 0.055,
+                alpha: 0.98
+            )
         )
         bodyGradient?.draw(in: body, angle: -90)
 
-        NSColor(calibratedRed: 0.30, green: 0.88, blue: 0.96, alpha: 0.7).setStroke()
+        NSColor(
+            calibratedRed: 0.30,
+            green: 0.88,
+            blue: 0.96,
+            alpha: 0.7
+        ).setStroke()
         body.lineWidth = 1.2
         body.stroke()
 
         let platformRect = CGRect(x: 42, y: 42, width: 140, height: 24)
         let platform = NSBezierPath(ovalIn: platformRect)
         let platformGradient = NSGradient(
-            starting: NSColor(calibratedRed: 0.25, green: 0.92, blue: 1.0, alpha: 0.62),
-            ending: NSColor(calibratedRed: 0.04, green: 0.22, blue: 0.34, alpha: 0.88)
+            starting: NSColor(
+                calibratedRed: 0.25,
+                green: 0.92,
+                blue: 1.0,
+                alpha: 0.62
+            ),
+            ending: NSColor(
+                calibratedRed: 0.04,
+                green: 0.22,
+                blue: 0.34,
+                alpha: 0.88
+            )
         )
         platformGradient?.draw(in: platform, angle: -90)
 
-        NSColor(calibratedRed: 0.56, green: 0.96, blue: 1.0, alpha: 0.9).setStroke()
+        NSColor(
+            calibratedRed: 0.56,
+            green: 0.96,
+            blue: 1.0,
+            alpha: 0.9
+        ).setStroke()
         platform.lineWidth = 1
         platform.stroke()
 
-        let glow = NSBezierPath(ovalIn: CGRect(x: 61, y: 45, width: 102, height: 15))
-        NSColor(calibratedRed: 0.55, green: 0.97, blue: 1.0, alpha: 0.16).setFill()
+        let glow = NSBezierPath(
+            ovalIn: CGRect(x: 61, y: 45, width: 102, height: 15)
+        )
+        NSColor(
+            calibratedRed: 0.55,
+            green: 0.97,
+            blue: 1.0,
+            alpha: 0.16
+        ).setFill()
         glow.fill()
+
+        clearVoiceButtonNotch()
 
         drawMetric(
             header: "WEEK LEFT",
@@ -210,13 +252,66 @@ private final class DockView: NSView {
 
         let statusAttributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.monospacedSystemFont(ofSize: 7, weight: .medium),
-            .foregroundColor: NSColor(calibratedRed: 0.50, green: 0.93, blue: 0.96, alpha: 0.72)
+            .foregroundColor: NSColor(
+                calibratedRed: 0.50,
+                green: 0.93,
+                blue: 0.96,
+                alpha: 0.72
+            )
         ]
         let status = metrics.statusText.uppercased() as NSString
         status.draw(
-            at: CGPoint(x: bounds.midX - status.size(withAttributes: statusAttributes).width / 2, y: 6),
+            at: CGPoint(
+                x: bounds.midX
+                    - status.size(withAttributes: statusAttributes).width / 2,
+                y: 6
+            ),
             withAttributes: statusAttributes
         )
+    }
+
+    /// Cuts an open-top transparent notch through both the dark body and the
+    /// illuminated platform. The Codex-owned voice button remains visible
+    /// through this region while the cyan outline visually integrates it with
+    /// the dock.
+    private func clearVoiceButtonNotch() {
+        let notchRect = CGRect(
+            x: bounds.midX - voiceButtonNotchWidth / 2,
+            y: bounds.maxY - voiceButtonNotchDepth,
+            width: voiceButtonNotchWidth,
+            height: voiceButtonNotchDepth + 12
+        )
+        let cornerRadius = voiceButtonNotchWidth / 4
+
+        guard let context = NSGraphicsContext.current?.cgContext else {
+            return
+        }
+
+        context.saveGState()
+        let notchPath = CGPath(
+            roundedRect: notchRect,
+            cornerWidth: cornerRadius,
+            cornerHeight: cornerRadius,
+            transform: nil
+        )
+        context.addPath(notchPath)
+        context.clip()
+        context.clear(notchRect)
+        context.restoreGState()
+
+        let outline = NSBezierPath(
+            roundedRect: notchRect,
+            xRadius: cornerRadius,
+            yRadius: cornerRadius
+        )
+        NSColor(
+            calibratedRed: 0.56,
+            green: 0.96,
+            blue: 1.0,
+            alpha: 0.42
+        ).setStroke()
+        outline.lineWidth = 1
+        outline.stroke()
     }
 
     private func drawMetric(header: String, value: String, in rect: CGRect) {
@@ -229,17 +324,35 @@ private final class DockView: NSView {
             .paragraphStyle: paragraph
         ]
         let valueAttributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.monospacedSystemFont(ofSize: 14, weight: .semibold),
-            .foregroundColor: NSColor(calibratedRed: 0.76, green: 0.98, blue: 1.0, alpha: 0.96),
+            .font: NSFont.monospacedSystemFont(
+                ofSize: 14,
+                weight: .semibold
+            ),
+            .foregroundColor: NSColor(
+                calibratedRed: 0.76,
+                green: 0.98,
+                blue: 1.0,
+                alpha: 0.96
+            ),
             .paragraphStyle: paragraph
         ]
 
         (header as NSString).draw(
-            in: CGRect(x: rect.minX, y: rect.maxY - 9, width: rect.width, height: 9),
+            in: CGRect(
+                x: rect.minX,
+                y: rect.maxY - 9,
+                width: rect.width,
+                height: 9
+            ),
             withAttributes: headerAttributes
         )
         (value as NSString).draw(
-            in: CGRect(x: rect.minX, y: rect.minY, width: rect.width, height: 18),
+            in: CGRect(
+                x: rect.minX,
+                y: rect.minY,
+                width: rect.width,
+                height: 18
+            ),
             withAttributes: valueAttributes
         )
     }
