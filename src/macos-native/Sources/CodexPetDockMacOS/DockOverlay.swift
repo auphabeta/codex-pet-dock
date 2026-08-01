@@ -18,10 +18,13 @@ final class DockOverlayController {
     /// Vertical position of the illuminated platform inside the dock panel.
     private let platformContactFromBottom: CGFloat = 49
 
-    /// How far the dock overlaps the pet's AX frame. The pet artwork exposes
-    /// transparent padding below its visible feet, so a positive overlap is
-    /// required to make the character visually stand on the platform.
+    /// Base overlap used to place the visible pet artwork on the platform.
     private let petSeatOverlap: CGFloat = 22
+
+    /// The Codex AX frame currently includes the voice control below the pet.
+    /// Compensate for that control area so the platform aligns with the pet's
+    /// visible feet rather than the bottom of the combined accessibility frame.
+    private let codexVoiceControlCompensation: CGFloat = 32
 
     init() {
         panel = NSPanel(
@@ -70,6 +73,7 @@ final class DockOverlayController {
             y: petFrame.minY
                 - platformContactFromBottom
                 + petSeatOverlap
+                + codexVoiceControlCompensation
                 + offset.y
         )
         setInteractionEnabled(allowsDragging)
