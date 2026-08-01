@@ -11,6 +11,7 @@ final class AttachmentController {
     private var windowFallbackEnabled = false
     private var currentAnchor: PetAnchor?
     private var manualOffset = CGPoint.zero
+    private var dragFailureStatus: String?
     private var lastStatus = ""
 
     init(overlay: DockOverlayController) {
@@ -49,12 +50,14 @@ final class AttachmentController {
     func setPreviewEnabled(_ enabled: Bool) {
         previewEnabled = enabled
         manualOffset = .zero
+        dragFailureStatus = nil
         tick()
     }
 
     func setWindowFallbackEnabled(_ enabled: Bool) {
         windowFallbackEnabled = enabled
         manualOffset = .zero
+        dragFailureStatus = nil
         tick()
     }
 
@@ -77,6 +80,7 @@ final class AttachmentController {
             allowWindowFallback: windowFallbackEnabled
         ) else {
             currentAnchor = nil
+            dragFailureStatus = nil
             overlay.hide()
 
             if !AccessibilityPermission.isTrusted(prompt: false) {
@@ -102,7 +106,9 @@ final class AttachmentController {
         )
 
         if precise {
-            publishStatus("Attached to Codex pet")
+            publishStatus(
+                dragFailureStatus ?? "Attached to Codex pet — drag the dock to move both"
+            )
         } else {
             publishStatus("Debug window fallback — drag the dock to reposition")
         }
@@ -116,13 +122,30 @@ final class AttachmentController {
             return
         }
 
-        if let movableWindow = currentAnchor?.movableWindow,
-           locator.move(window: movableWindow, by: delta) {
-            tick()
-            return
+        if let anchor = currentAnchor,
+           let originalWindow = anchor.movableWindow {
+            let result = locator.moveBestAvailableWindow(
+                startingAt: originalWindow,
+                anchorFrame: anchor.frame,
+                by: delta
+            )
+            switch result {
+            case .moved:
+                dragFailureStatus = nil
+                tick()
+                return
+            case .noWritableWindow, .failed:
+                dragFailureStatus = result.statusText
+                publishStatus(
+                    result.statusText ?? "Attached, but the Codex pet window could not be moved"
+                )
+                return
+            }
         }
 
         guard currentAnchor?.source == .hostWindowFallback else {
+            dragFailureStatus = "Attached, but no movable Codex pet window was exposed"
+            publishStatus(dragFailureStatus!)
             return
         }
         manualOffset.x += delta.x
