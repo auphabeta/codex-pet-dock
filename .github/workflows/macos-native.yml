@@ -1,0 +1,29 @@
+name: macOS native prototype
+
+on:
+  push:
+    branches:
+      - feature/macos-native
+    paths:
+      - "src/macos-native/**"
+      - ".github/workflows/macos-native.yml"
+  pull_request:
+    paths:
+      - "src/macos-native/**"
+      - ".github/workflows/macos-native.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: src/macos-native
+    steps:
+      - uses: actions/checkout@v4
+      - name: Show Swift version
+        run: swift --version
+      - name: Build prototype
+        run: swift build -c release
