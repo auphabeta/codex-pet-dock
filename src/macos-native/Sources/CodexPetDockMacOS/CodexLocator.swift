@@ -117,8 +117,10 @@ final class CodexPetLocator {
         let candidates = rawWindows.compactMap { info -> QuartzWindowCandidate? in
             guard let ownerPID = info[kCGWindowOwnerPID as String] as? NSNumber,
                   ownerPID.int32Value == pid,
-                  let boundsDictionary = info[kCGWindowBounds as String] as? CFDictionary,
-                  let quartzFrame = CGRect(dictionaryRepresentation: boundsDictionary),
+                  let boundsDictionary = info[kCGWindowBounds as String] as? NSDictionary,
+                  let quartzFrame = CGRect(
+                    dictionaryRepresentation: boundsDictionary as CFDictionary
+                  ),
                   quartzFrame.width >= 100,
                   quartzFrame.height >= 100,
                   quartzFrame.width <= 1600,
@@ -334,10 +336,16 @@ final class CodexPetLocator {
             name as CFString,
             &value
         ) == .success,
-        let axValue = value as? AXValue,
-        AXValueGetType(axValue) == .cgPoint else {
+        let value,
+        CFGetTypeID(value) == AXValueGetTypeID() else {
             return nil
         }
+
+        let axValue = unsafeBitCast(value, to: AXValue.self)
+        guard AXValueGetType(axValue) == .cgPoint else {
+            return nil
+        }
+
         var point = CGPoint.zero
         guard AXValueGetValue(axValue, .cgPoint, &point) else {
             return nil
@@ -352,10 +360,16 @@ final class CodexPetLocator {
             name as CFString,
             &value
         ) == .success,
-        let axValue = value as? AXValue,
-        AXValueGetType(axValue) == .cgSize else {
+        let value,
+        CFGetTypeID(value) == AXValueGetTypeID() else {
             return nil
         }
+
+        let axValue = unsafeBitCast(value, to: AXValue.self)
+        guard AXValueGetType(axValue) == .cgSize else {
+            return nil
+        }
+
         var size = CGSize.zero
         guard AXValueGetValue(axValue, .cgSize, &size) else {
             return nil
