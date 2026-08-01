@@ -21,10 +21,10 @@ final class DockOverlayController {
     /// Visual overlap used by the original pet-only anchor contract.
     private let petSeatOverlap: CGFloat = 22
 
-    /// The macOS Codex accessibility frame includes the voice control beneath
-    /// the visible pet. Keep the intact dock body immediately below that
-    /// control instead of cutting a large transparent hole through the dock.
-    private let codexVoiceControlClearance: CGFloat = -42
+    /// The voice control is a separate Codex-owned element below the pet.
+    /// Lift the intact dock close enough to read as one composition while
+    /// retaining a small clear gap around the white voice button.
+    private let codexVoiceControlClearance: CGFloat = 8
 
     init() {
         panel = NSPanel(
