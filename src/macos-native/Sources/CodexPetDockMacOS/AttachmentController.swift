@@ -8,7 +8,9 @@ final class AttachmentController {
     private let locator = CodexPetLocator()
     private var timer: Timer?
     private var previewEnabled = false
+    private var windowFallbackEnabled = false
     private var currentAnchor: PetAnchor?
+    private var manualOffset = CGPoint.zero
     private var lastStatus = ""
 
     init(overlay: DockOverlayController) {
@@ -46,6 +48,13 @@ final class AttachmentController {
 
     func setPreviewEnabled(_ enabled: Bool) {
         previewEnabled = enabled
+        manualOffset = .zero
+        tick()
+    }
+
+    func setWindowFallbackEnabled(_ enabled: Bool) {
+        windowFallbackEnabled = enabled
+        manualOffset = .zero
         tick()
     }
 
@@ -57,16 +66,26 @@ final class AttachmentController {
                     weeklyRemainingText: "--",
                     weeklyTokensText: "--",
                     statusText: "PREVIEW"
-                )
+                ),
+                offset: manualOffset
             )
-            publishStatus("Preview mode")
+            publishStatus("Preview mode — drag the dock to move it")
             return
         }
 
-        guard let result = locator.locate() else {
+        guard let result = locator.locate(
+            allowWindowFallback: windowFallbackEnabled
+        ) else {
             currentAnchor = nil
             overlay.hide()
-            publishStatus("Waiting for Codex pet")
+
+            if !AccessibilityPermission.isTrusted(prompt: false) {
+                publishStatus("Grant Accessibility permission to find the pet")
+            } else if locator.isCodexRunning() {
+                publishStatus("Codex is running, but no pet element was detected")
+            } else {
+                publishStatus("Waiting for Codex")
+            }
             return
         }
 
@@ -77,25 +96,37 @@ final class AttachmentController {
             metrics: DockMetrics(
                 weeklyRemainingText: "--",
                 weeklyTokensText: "--",
-                statusText: precise ? "ATTACHED" : "WINDOW"
-            )
+                statusText: precise ? "ATTACHED" : "WINDOW DEBUG"
+            ),
+            offset: precise ? .zero : manualOffset
         )
 
         if precise {
             publishStatus("Attached to Codex pet")
-        } else if AccessibilityPermission.isTrusted(prompt: false) {
-            publishStatus("Using Codex window fallback")
         } else {
-            publishStatus("Grant Accessibility for precise attachment")
+            publishStatus("Debug window fallback — drag the dock to reposition")
         }
     }
 
     private func handleDrag(_ delta: CGPoint) {
-        guard !previewEnabled,
-              let movableWindow = currentAnchor?.movableWindow,
-              locator.move(window: movableWindow, by: delta) else {
+        if previewEnabled {
+            manualOffset.x += delta.x
+            manualOffset.y += delta.y
+            tick()
             return
         }
+
+        if let movableWindow = currentAnchor?.movableWindow,
+           locator.move(window: movableWindow, by: delta) {
+            tick()
+            return
+        }
+
+        guard currentAnchor?.source == .hostWindowFallback else {
+            return
+        }
+        manualOffset.x += delta.x
+        manualOffset.y += delta.y
         tick()
     }
 
