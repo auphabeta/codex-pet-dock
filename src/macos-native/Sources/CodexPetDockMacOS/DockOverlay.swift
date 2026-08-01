@@ -36,6 +36,8 @@ final class DockOverlayController {
             .ignoresCycle
         ]
         panel.isMovable = false
+        panel.ignoresMouseEvents = false
+        panel.acceptsMouseMovedEvents = true
         panel.isReleasedWhenClosed = false
 
         dockView.onDrag = { [weak self] delta in
@@ -43,10 +45,14 @@ final class DockOverlayController {
         }
     }
 
-    func show(attachedTo petFrame: CGRect, metrics: DockMetrics) {
+    func show(
+        attachedTo petFrame: CGRect,
+        metrics: DockMetrics,
+        offset: CGPoint = .zero
+    ) {
         let origin = CGPoint(
-            x: petFrame.midX - size.width / 2,
-            y: petFrame.minY - contactSurfaceFromBottom + contactOverlap
+            x: petFrame.midX - size.width / 2 + offset.x,
+            y: petFrame.minY - contactSurfaceFromBottom + contactOverlap + offset.y
         )
         panel.setFrame(CGRect(origin: origin, size: size), display: true)
         dockView.metrics = metrics
@@ -54,13 +60,16 @@ final class DockOverlayController {
         panel.orderFrontRegardless()
     }
 
-    func showPreview(metrics: DockMetrics) {
+    func showPreview(
+        metrics: DockMetrics,
+        offset: CGPoint = .zero
+    ) {
         guard let visibleFrame = NSScreen.main?.visibleFrame else {
             return
         }
         let origin = CGPoint(
-            x: visibleFrame.maxX - size.width - 24,
-            y: visibleFrame.minY + 24
+            x: visibleFrame.midX - size.width / 2 + offset.x,
+            y: visibleFrame.minY + 36 + offset.y
         )
         panel.setFrame(CGRect(origin: origin, size: size), display: true)
         dockView.metrics = metrics
@@ -80,6 +89,15 @@ private final class DockView: NSView {
     private var lastDragLocation: CGPoint?
 
     override var isFlipped: Bool { false }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        true
+    }
+
+    override func resetCursorRects() {
+        super.resetCursorRects()
+        addCursorRect(bounds, cursor: .openHand)
+    }
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
@@ -174,6 +192,7 @@ private final class DockView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         lastDragLocation = NSEvent.mouseLocation
+        NSCursor.closedHand.set()
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -192,5 +211,6 @@ private final class DockView: NSView {
 
     override func mouseUp(with event: NSEvent) {
         lastDragLocation = nil
+        NSCursor.openHand.set()
     }
 }
