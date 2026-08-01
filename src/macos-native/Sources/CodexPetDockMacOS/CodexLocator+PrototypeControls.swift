@@ -7,11 +7,22 @@ extension CodexPetLocator {
         guard let result = locate() else {
             return nil
         }
-        if !allowWindowFallback,
-           result.anchor.source == .hostWindowFallback {
-            return nil
+
+        if result.anchor.source == .hostWindowFallback {
+            return allowWindowFallback ? result : nil
         }
-        return result
+
+        let frame = result.anchor.frame
+        let aspectRatio = frame.width / max(frame.height, 1)
+        let plausiblePetBounds =
+            frame.width >= 64 &&
+            frame.height >= 64 &&
+            frame.width <= 420 &&
+            frame.height <= 420 &&
+            aspectRatio >= 0.45 &&
+            aspectRatio <= 2.2
+
+        return plausiblePetBounds ? result : nil
     }
 
     func isCodexRunning() -> Bool {
